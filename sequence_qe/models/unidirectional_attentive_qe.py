@@ -104,6 +104,14 @@ def right_pad(seq, max_len, padding_symbol):
 def l2_norm(tensor):
     return tf.sqrt(tf.reduce_sum(tf.square(tensor)))
 
+def load_vocab(vocab_index_file):
+    vocab_dict = cPickle.load(open(vocab_index_file))
+    vocab_size = len(vocab_dict)
+    logger.info('loaded vocabulary index from: {}'.format(vocab_index_file))
+    logger.info('vocab size: {}'.format(vocab_size))
+    vocab_idict = {v: k for k, v in vocab_dict.items()}
+    return vocab_dict, vocab_idict, vocab_size
+
 
 class UnidirectionalAttentiveQEModel(object):
 
@@ -147,6 +155,9 @@ class UnidirectionalAttentiveQEModel(object):
         if config is None:
             config = {}
 
+        # this is to make results deterministic
+        self.random_seed = 42
+
         self.config = dict(default_config, **config)
 
         # adds factored embeddings for NER tags
@@ -160,7 +171,8 @@ class UnidirectionalAttentiveQEModel(object):
 
         # WORKING: evaluate with WMT 16 QE data
 
-        # TODO: add subword codes to assets
+        # TODO: segment labels, target, and source into sub-words
+        # TODO: where there are factors, these need to be segmented as well
         # self.data_processor = DataProcessor(start_token=self.meta['start_token'],
         #                                     end_token=self.meta['end_token'],
         #                                     max_sequence_length=self.meta['context_length'],
@@ -184,44 +196,28 @@ class UnidirectionalAttentiveQEModel(object):
         #self.vocabulary_index = os.path.join(os.path.dirname(__file__),
         #                                    'resources/embeddings/full_wikipedia.vocab.pkl')
         # self.vocabulary_index = '/media/1tb_drive/wiki2vec_data/en/text_for_word_vectors/subword_vectors/full_wikipedia.subword.vocab.pkl'
-        self.vocabulary_index = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vocab.pkl'
+        src_index = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vocab.pkl'
+        trg_index = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vocab.pkl'
+        output_index = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vocab.pkl'
 
-        self.vocab_dict = cPickle.load(open(self.vocabulary_index))
-        self.vocab_size = len(self.vocab_dict)
-        logger.info('loaded vocabulary index from: {}'.format(self.vocabulary_index))
-        logger.info('vocab size: {}'.format(self.vocab_size))
-
-        self.vocab_idict = {v: k for k, v in self.vocab_dict.items()}
-
-        # TODO: change this to the output vocab dict
-        self.name_generation_dict = cPickle.load(open('/media/1tb_drive/wiki2vec_data/en/entity_generation/entity_character.vocab.pkl'))
-        self.name_vocab_size = len(self.name_generation_dict)
-        self.name_generation_idict = {v:k for k,v in self.name_generation_dict.items()}
+        self.src_vocab_dict, self.src_vocab_idict, self.src_vocab_size = load_vocab(src_index)
+        self.trg_vocab_dict, self.trg_vocab_idict, self.trg_vocab_size = load_vocab(trg_index)
+        self.output_vocab_dict, self.output_vocab_idict, self.output_vocab_size = load_vocab(output_index)
 
         logger.info('Loading word embeddings')
+        # TODO: add pretrained embeddings for target language
         #self.pretrained_embeddings = os.path.join(os.path.dirname(__file__),
         #                                          'resources/embeddings/full_wikipedia.vecs.npz')
         # self.pretrained_embeddings = '/media/1tb_drive/wiki2vec_data/en/text_for_word_vectors/subword_vectors/full_wikipedia.subword.vecs.npz'
-        self.pretrained_embeddings = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vecs.npz'
+        self.pretrained_source_embeddings = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vecs.npz'
 
-        # this is to make results deterministic
-        self.random_seed = 1
-
-        self.num_sfs = None
-        self.sf_dict = None
-        self.sf_idict = None
-        self.num_entities = None
-        self.entity_dict = None
-        self.entity_idict = None
-
-        self._build_indexes()
 
         # some of the ops that self._build_graph sets as properties on this instance
         self.graph = None
         self.predictions = None
         self.cost = None
         self.full_graph_optimizer = None
-        self.entity_representation_optimizer = None
+        # self.entity_representation_optimizer = None
         self.saver = None
 
         logger.info('Building Tensorflow graph')
@@ -229,31 +225,7 @@ class UnidirectionalAttentiveQEModel(object):
 
         self.session = None
 
-    def _build_indexes(self):
-        if self.entity_index is not None:
-            self.entity_dict = cPickle.load(open(self.entity_index))
-            self.all_entities = np.array(self.entity_dict.keys())
-            # this is to make sampling faster
-            self.all_entities_range = np.array(range(len(self.all_entities)), dtype='int16')
-            # Note: this can break when we use real entities (without dynamic candidate map)
-            self.num_entities = len(self.entity_dict)
-
-            self.entity_idict = {k: v for v, k in self.entity_dict.items()}
-            logger.info('loaded entity index from: {}'.format(self.entity_index))
-
-            # this only makes sense if we are saving space to add entities later
-            #self.num_entities = len(self.entity_dict) + num_extra_entities
-            #num_extra_entities = self.max_entities - len(self.entity_dict)
-            #logger.info('I saved places for : {}'.format(num_extra_entities))
-
-            logger.info('entity index size: {}'.format(self.num_entities))
-
-            return
-
-        logger.error('No prebuilt indexes were provided, cannot build entity index from scratch')
-        raise NotImplementedError
-
-    # this function was copied from tensorflow seq2seq tests
+    # this function was copied from tensorflow.contrib.seq2seq tests
     @staticmethod
     def _decoder_fn_with_context_state(inner_decoder_fn, name=None):
         """Wraps a given decoder function, adding context state to it.
@@ -292,33 +264,31 @@ class UnidirectionalAttentiveQEModel(object):
             tf.set_random_seed(self.random_seed)
 
             # DATASET PLACEHOLDERS
-            # (batch, 2)
-            idx_tuple = tf.placeholder(tf.int32)
 
             # (batch, time)
-            context = tf.placeholder(tf.int32)
-            context_mask = tf.placeholder(tf.float32)
+            source = tf.placeholder(tf.int32)
+            source_mask = tf.placeholder(tf.float32)
+            target = tf.placeholder(tf.int32)
+            target_mask = tf.placeholder(tf.float32)
+            output = tf.placeholder(tf.int32)
+            output_mask = tf.placeholder(tf.float32)
 
             # TODO: add factored contexts (POS, NER, ETC...)
             # ner_context = tf.placeholder(tf.int32)
-
-            # (batch, time)
-            entity = tf.placeholder(tf.int32)
-            # (batch, time)
-            entity_mask = tf.placeholder(tf.float32)
 
             # sets the probability of dropping out
             dropout_prob = tf.placeholder(tf.float32)
 
             with tf.name_scope('embeddings'):
-                word_embeddings = tf.get_variable("word_embeddings", [self.vocab_size, self.meta['embedding_size']],
-                                                  trainable=True)
+                source_embeddings = tf.get_variable("source_embeddings",
+                                                    [self.src_vocab_size, self.config['embedding_size']],
+                                                    trainable=True)
                 # TODO: support factors for source and target inputs
                 # ner_embeddings = tf.get_variable("ner_embeddings", [self.meta['num_ner_tags'], self.meta['ner_embedding_size']],
                 #                                   trainable=True)
 
                 # default: just embed the tokens in the source context
-                context_embed = tf.nn.embedding_lookup(word_embeddings, context)
+                source_embed = tf.nn.embedding_lookup(source_embeddings, source)
 
                 if self.use_ner_embeddings:
                     pass
@@ -328,35 +298,37 @@ class UnidirectionalAttentiveQEModel(object):
                     # context_embed.set_shape([None, None, self.meta['embedding_size'] + self.meta['ner_embedding_size']])
                 else:
                     # this is to fix shape inference bug in rnn.py -- see this issue: https://github.com/tensorflow/tensorflow/issues/2938
-                    context_embed.set_shape([None, None, self.meta['embedding_size']])
+                    source_embed.set_shape([None, None, self.config['embedding_size']])
 
                 # TODO: switch this to target language embeddings
                 # TODO: support target language factors (POS, NER, etc...)
-                entity_embeddings = tf.get_variable("entity_embeddings", [self.name_vocab_size, self.meta['entity_name_embedding_size']])
+                target_embeddings = tf.get_variable("target_embeddings",
+                                                    [self.trg_vocab_size, self.config['embedding_size']])
 
-                # entity embeddings - input to training
-                entity_embed = tf.nn.embedding_lookup(entity_embeddings, entity)
-                entity_embed.set_shape([None, None, self.meta['entity_name_embedding_size']])
+                # target embeddings - these are the _inputs_ to the decoder
+                target_embed = tf.nn.embedding_lookup(target_embeddings, target)
+                target_embed.set_shape([None, None, self.config['embedding_size']])
 
 
             # Construct input representation that we'll put attention over
             # Note: dropout is turned on/off by `dropout_prob`
             with tf.name_scope('input_representation'):
-                lstm_cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(self.meta['recurrent_layer_size'],
+                lstm_cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(self.config['recurrent_layer_size'],
                                                                                     use_peepholes=True,
                                                                                     state_is_tuple=True),
                                                             input_keep_prob=dropout_prob)
-                              for _ in range(self.meta['lstm_stack_size'])]
+                              for _ in range(self.config['lstm_stack_size'])]
 
                 cell = tf.contrib.rnn.MultiRNNCell(lstm_cells, state_is_tuple=True)
 
                 # use the description mask to get the sequence lengths
-                sequence_length = tf.cast(tf.reduce_sum(context_mask, 1), tf.int64)
+                source_sequence_length = tf.cast(tf.reduce_sum(source_mask, 1), tf.int64)
 
                 # BIDIRECTIONAL RNN
                 # Bidir outputs are (output_fw, output_bw)
-                bidir_outputs, bidir_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=cell, cell_bw=cell, inputs=context_embed,
-                                                                             sequence_length=sequence_length,
+                bidir_outputs, bidir_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=cell, cell_bw=cell,
+                                                                             inputs=source_embed,
+                                                                             sequence_length=source_sequence_length,
                                                                              dtype=tf.float32)
                 l_to_r_states, r_to_l_states = bidir_state
 
@@ -365,8 +337,14 @@ class UnidirectionalAttentiveQEModel(object):
                 # attention_states = tf.transpose(tf.concat(bidir_outputs, 2), [1, 0, 2])
                 attention_states = tf.concat(bidir_outputs, 2)
 
-                # TODO: concat only will work if encoder state size is 1/2 decoder state size, because of bidirectional
-                initialization_state = tf.concat([r_to_l_states[-1][1], l_to_r_states[-1][1]], 1)
+                # Note: encoder is bidirectional, so we reduce dimensionality by 1/2 to make decoder initial state
+                init_state_transformation = tf.get_variable('decoder_init_transform',
+                                                            self.config['embedding_size']*2,
+                                                            self.config['embedding_size'])
+                initialization_state = tf.matmul(tf.concat([r_to_l_states[-1][1], l_to_r_states[-1][1]], 1),
+                                                 init_state_transformation)
+
+                # alternatively just use the final l_to_r state
                 # initialization_state = l_to_r_states[-1][1]
 
                 # TODO: try with simple L-->R GRU
@@ -378,13 +356,13 @@ class UnidirectionalAttentiveQEModel(object):
                 #     scope=scope)
 
             # Now construct the decoder
-            decoder_hidden_size = self.meta['decoder_hidden_size']
+            decoder_hidden_size = self.config['decoder_hidden_size']
             # attention
             attention_option = "bahdanau"  # can be "luong"
 
             with variable_scope.variable_scope("decoder") as scope:
 
-                entity_lengths = tf.cast(tf.reduce_sum(entity_mask, axis=1), dtype=tf.int32)
+                target_lengths = tf.cast(tf.reduce_sum(target_mask, axis=1), dtype=tf.int32)
 
                 # Prepare attention
                 (attention_keys, attention_values, attention_score_fn,
@@ -398,7 +376,9 @@ class UnidirectionalAttentiveQEModel(object):
                     attention_score_fn=attention_score_fn,
                     attention_construct_fn=attention_construct_fn)
 
-                num_decoder_symbols = self.name_vocab_size
+                # Note: this is different from the "normal" seq2seq encoder-decoder model, because we have different
+                # input and output vocabularies for the decoder (target vocab vs. QE symbols)
+                num_decoder_symbols = self.output_vocab_size
                 # decoder vocab is characters or sub-words? -- either way, we need to learn the vocab over the entity set
                 # setting up weights for computing the final output
                 def create_output_fn():
@@ -415,49 +395,19 @@ class UnidirectionalAttentiveQEModel(object):
                     seq2seq.dynamic_rnn_decoder(
                         cell=decoder_cell,
                         decoder_fn=decoder_fn_train,
-                        inputs=entity_embed,
-                        sequence_length=entity_lengths,
+                        inputs=target_embed,
+                        sequence_length=target_lengths,
                         time_major=False,
                         scope=scope))
 
                 # TODO: for attentive QE, we don't need the inference decoding logic
                 # TODO: we can directly use train decoder output at both training and prediction time
 
-                # TODO: switch output_fn to map to QE vocab (token-OK, and token-BAD)
+                # TODO: add script to create QE output vocab: (target-token-OK, and target-token-BAD)
                 decoder_outputs_train = output_fn(decoder_outputs_train)
                 # DEBUGGING: dump these
                 self.decoder_outputs_train = decoder_outputs_train
 
-                # Setup variable reuse
-                scope.reuse_variables()
-
-                # Inference below here
-                # Inference decoder
-                decoder_fn_inference = (
-                    attention_decoder_fn.attention_decoder_fn_inference(
-                        output_fn=output_fn,
-                        encoder_state=initialization_state,
-                        attention_keys=attention_keys,
-                        attention_values=attention_values,
-                        attention_score_fn=attention_score_fn,
-                        attention_construct_fn=attention_construct_fn,
-                        embeddings=entity_embeddings,
-                        start_of_sequence_id=self.meta['entity_bos_id'],
-                        end_of_sequence_id=self.meta['entity_eos_id'],
-                        # TODO: why -1?? -- there is a comment in the tests:
-                        # https://github.com/tensorflow/tensorflow/blob/r1.0/tensorflow/contrib/seq2seq/python/kernel_tests/seq2seq_test.py#L116
-                        maximum_length=self.meta['max_entity_length'] - 1,
-                        num_decoder_symbols=num_decoder_symbols,
-                        dtype=dtypes.int32))
-
-                (decoder_outputs_inference, decoder_state_inference, _) = (
-                    seq2seq.dynamic_rnn_decoder(
-                        cell=decoder_cell,
-                        decoder_fn=decoder_fn_inference,
-                        time_major=False, scope=scope))
-
-
-            # Working: output greedy predictions
             with tf.name_scope('predictions'):
                 prediction_logits = decoder_outputs_train
                 logit_histo = tf.summary.histogram('prediction_logits', prediction_logits)
@@ -465,42 +415,41 @@ class UnidirectionalAttentiveQEModel(object):
                 predictions = tf.nn.softmax(prediction_logits)
                 self.predictions = predictions
 
-                # Note: this is a hack, we no longer have a true probability distribution after multiplying by the mask
-                # predictions *= candidate_masks
-
                 # correct_predictions = tf.equal(tf.cast(tf.argmax(predictions, 1), tf.int32), entity)
                 # accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
                 # accuracy_summary = tf.summary.scalar('accuracy', accuracy)
 
             with tf.name_scope('xent'):
-                # WORKING: set entity and mask shape because they're needed here:
+                # Note: set output and output_mask shape because they're needed here:
                 # https://github.com/tensorflow/tensorflow/blob/r1.0/tensorflow/contrib/seq2seq/python/ops/loss.py#L65-L70
-                entity.set_shape([None, None])
-                entity_mask.set_shape([None, None])
+                output.set_shape([None, None])
+                output_mask.set_shape([None, None])
                 costs = tf.contrib.seq2seq.sequence_loss(logits=decoder_outputs_train,
-                                                         targets=entity,
-                                                         weights=entity_mask,
+                                                         targets=output,
+                                                         weights=output_mask,
                                                          average_across_timesteps=True)
                 cost = tf.reduce_mean(costs)
                 cost_summary = tf.summary.scalar('minibatch_cost', cost)
 
-            self.context = context
-            self.context_mask = context_mask
-            # self.ner_context = ner_context
-            self.idx_tuple = idx_tuple
-            self.entity = entity
-            self.entity_mask = entity_mask
-            # self.predictions = predictions
+            # expose placeholders and ops on the class
+            self.source = source
+            self.source_mask = source_mask
+            self.target = target
+            self.target_mask = target_mask
+            self.output = output
+            self.output_mask = output_mask
+            self.predictions = predictions
             self.cost = cost
             self.dropout_prob = dropout_prob
-            self.word_embeddings = word_embeddings
+
+            # TODO: expose embeddings so that they can be visualized?
 
             optimizer = tf.train.AdamOptimizer()
             with tf.name_scope('train'):
                 gradients = optimizer.compute_gradients(cost, tf.trainable_variables())
                 if self.meta['max_gradient_norm'] is not None:
                     gradients, variables = zip(*gradients)
-                    clipped_gradients, _ = clip_ops.clip_by_global_norm(gradients, self.meta['max_gradient_norm'])
+                    clipped_gradients, _ = clip_ops.clip_by_global_norm(gradients, self.config['max_gradient_norm'])
                     gradients = list(zip(clipped_gradients, variables))
 
                 for gradient, variable in gradients:
@@ -528,7 +477,8 @@ class UnidirectionalAttentiveQEModel(object):
 
             logger.info('Finished building model graph')
 
-
+    # WORKING HERE
+    # TODO: update these functions to return (source, source_mask, target, target_mask, output, output_mask)
     def map_data_to_input_matrices(self, entity, idx_tup, context, smart_sampling=False, ner_context=None, num_samples=50):
         """
 
