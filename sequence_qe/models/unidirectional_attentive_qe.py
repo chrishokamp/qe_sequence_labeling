@@ -84,6 +84,34 @@ def shuffle_instances_iterator(iterator, shuffle_factor=1000):
 def idx_or_unk(tokens, vocab, unknown_token='<UNK>'):
     return [vocab[tok] if tok in vocab else vocab[unknown_token] for tok in tokens]
 
+def padded_batch(seqs, padding_symbol):
+    """
+    Right pad all seqs in the batch up to the maximum length sequence
+
+    Params:
+      seqs: list of sequences
+      padding_symbol: the symbol to use for padding
+
+    Returns:
+      an np.array with dims (len(seqs), max(len(s) for s in seqs))
+    """
+
+    max_len = max(len(s) for s in seqs)
+    padded_batch = np.vstack([right_pad(seq, max_len, padding_symbol) for seq in seqs])
+    return padded_batch
+
+
+def mask_batch(batch, mask_symbol):
+    mask = np.zeros(batch.shape, dtype='float32')
+    # note we assume 2d here
+    for i, seq in enumerate(mask):
+        if mask_symbol in seq:
+            j = seq.index(mask_symbol)
+        else:
+            j = len(seq)
+        mask[i, :j] = 1.
+    return mask
+
 
 def right_pad(seq, max_len, padding_symbol):
     ''' Right pad a sequence up to max_len
@@ -192,13 +220,12 @@ class UnidirectionalAttentiveQEModel(object):
 
         # Note that there is a dependency between the vocabulary index and the embedding matrix
         # TODO: source, target, and output vocab dicts and idicts
-        logger.info('Loading vocabulary index')
-        #self.vocabulary_index = os.path.join(os.path.dirname(__file__),
-        #                                    'resources/embeddings/full_wikipedia.vocab.pkl')
-        # self.vocabulary_index = '/media/1tb_drive/wiki2vec_data/en/text_for_word_vectors/subword_vectors/full_wikipedia.subword.vocab.pkl'
-        src_index = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vocab.pkl'
-        trg_index = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vocab.pkl'
-        output_index = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vocab.pkl'
+        logger.info('Loading vocabulary indices')
+
+        index_dir='/media/1tb_drive/Dropbox/data/qe/model_data/en-de'
+        src_index = '/media/1tb_drive/Dropbox/data/qe/model_data/en-de/en.vocab.pkl'
+        trg_index = '/media/1tb_drive/Dropbox/data/qe/model_data/en-de/de.vocab.pkl'
+        output_index = '/media/1tb_drive/Dropbox/data/qe/model_data/en-de/qe_output.vocab.pkl'
 
         self.src_vocab_dict, self.src_vocab_idict, self.src_vocab_size = load_vocab(src_index)
         self.trg_vocab_dict, self.trg_vocab_idict, self.trg_vocab_size = load_vocab(trg_index)
@@ -476,213 +503,60 @@ class UnidirectionalAttentiveQEModel(object):
 
             logger.info('Finished building model graph')
 
-    # WORKING HERE
-    # TODO: update these functions to return (source, source_mask, target, target_mask, output, output_mask)
-    def map_data_to_input_matrices(self, entity, idx_tup, context, smart_sampling=False, ner_context=None, num_samples=50):
+    def get_batch(self, iterator, batch_size, sample_prob=1.0):
         """
 
-        :param entity: the unicode entity
-        :param idx_tup: iterable w/ 2 int indexes (start, end)
-        :param context: iterable of unicode tokens with length strictly <= self.meta['context_length']
+        Params:
+          iterator: iterator over (source, target, output) strings
+          batch_size: size of the desired batch (note a batch can be smaller if the iterator finishes)
+          sample_prob: (optional) the probability of sampling each instance
 
-        :return: (entity_idx: int, idx_tup: np.array, padded_context_idxs: np.array, context_mask: np.array)
+        Returns:
+          (source, source_mask, target, target_mask, output, output_mask)
         """
-
-        entity_seq_idxs = np.array(idx_or_unk(entity, self.name_generation_dict, u'<UNK>'))
-
-        max_context_len = self.meta['context_length']
-        assert len(context) <= max_context_len, 'you provided a context longer than {} tokens'.format(max_context_len)
-
-        sf = tuple(context[idx_tup[0]:idx_tup[1]])
-        try:
-            assert sf in self.candidate_map
-        except AssertionError:
-            logger.error(u'Warning: surface form: {} is not in the candidate map, its disambiguation is: {}'.format(sf, entity))
-            return None
-
-        if smart_sampling:
-            candidates = self.candidate_map[sf]
-        else:
-            # Note we're mapping to and from int-->str-->int!?!
-            actual_candidates = self.candidate_map[sf]
-            num_samples = max(num_samples - len(actual_candidates), 0)
-            random_idxs = np.random.choice(self.all_entities_range, size=num_samples, replace=False)
-            sampled_candidates = self.all_entities[random_idxs]
-            sampled_candidates = list(sampled_candidates) + actual_candidates
-            candidates = sampled_candidates
-
-        # Note: some candidates may not be in the entity dict
-        # Note: In general, the entity dict and the candidate map should be built from the same dataset
-        candidate_idxs = [self.entity_dict[e] for e in candidates if e in self.entity_dict]
-
-        # map contexts to idxs
-        eos_idx = self.vocab_dict[self.meta['eos_token']]
-        unk_token = self.meta['unknown_token']
-        mapped_context = idx_or_unk(context, self.vocab_dict, unk_token)
-        padded_context = right_pad(mapped_context, max_context_len, eos_idx)
-        training_context = np.array(padded_context)
-        actual_length = np.sum(training_context != eos_idx)
-
-        # add a mask where contexts are artificially extended
-        context_mask = np.zeros(max_context_len, dtype='float32')
-        context_mask[:actual_length] = 1.
-
-        idx_tup = np.array(idx_tup)
-
-        if ner_context is not None:
-            # Note: there should never be an unknown token in the ner context
-            mapped_ner_context = idx_or_unk(ner_context, self.ner_dict, unk_token)
-            ner_eos = self.ner_dict[self.meta['ner_padding_token']]
-            padded_ner_context = right_pad(mapped_ner_context, max_context_len, ner_eos)
-            training_ner_context = np.array(padded_ner_context)
-            return entity_seq_idxs, idx_tup, training_context, context_mask, training_ner_context, candidate_idxs
-        else:
-            return entity_seq_idxs, idx_tup, training_context, context_mask, candidate_idxs
-
-    def get_batch(self, iterator, batch_size, sample_prob=1.0, smart_sampling=True, actual_entities=False):
 
         data = []
         i = 0
+        sources = []
+        targets = []
+        outputs = []
         while i < batch_size:
             try:
-                entity, idx_tup, context = self.parse_recurrent_pointer_fields(iterator.next())
+                source, target, output = iterator.next()
             except StopIteration:
                 break
 
-            # WORKING: split entities into characters, lookup the char idxs
-            # WORKING: right pad entities in batch
+            source_idxs = idx_or_unk(source, self.src_vocab_dict, u'<UNK>')
+            target_idxs = idx_or_unk(target, self.trg_vocab_dict, u'<UNK>')
+            output_idxs = idx_or_unk(output, self.output_vocab_dict, u'<UNK>')
+            assert len(target_idxs) == len(output_idxs), 'Output and target should always be the same length'
 
-            ner_context = None
-            if self.use_ner_embeddings:
-                ner_context = self.data_processor.ner_tags_from_pointer_seq_and_context(idx_tup, context)
+            sources.append(source_idxs)
+            targets.append(target_idxs)
+            outputs.append(output_idxs)
 
             # reservoir sampling to randomize batches
             if np.random.binomial(1, sample_prob) == 0:
                 continue
 
-            mapped_row = self.map_data_to_input_matrices(entity,
-                                                         idx_tup,
-                                                         context,
-                                                         ner_context=ner_context,
-                                                         smart_sampling=smart_sampling)
-
-            # if there was an error in the mapping
-            if mapped_row is None:
-                continue
-
-            # Note: this filtering makes assumptions about the downstream usage of the model
-            # if self.entity_dict[u'<UNK>'] in set(mapped_row[0]):
-            #     continue
-
-            # Note: this filtering distorts dev results, because we cannot guarantee that we know the correct entity
-            # Note: i.e. the correct entity may not even be present in our index
-            # filter out examples where the correct entity is not present in the list of candidates
-            if not mapped_row[0][0] in mapped_row[-1]:
-                continue
-
-            data.append(mapped_row)
             i += 1
 
-        cols = zip(*data)
-        # map entities to their dynamic indices
-        #return training_entity, idx_tup, training_context, context_mask, candidate_idxs
+        src_eos = self.src_vocab_dict[self.config['eos_token']]
+        trg_eos = self.trg_vocab_dict[self.config['eos_token']]
+        output_eos = self.output_vocab_dict[self.config['eos_token']]
 
-        data_cols = cols[1:-1] # idx_tup, training_context, context_mask
+        source_batch = padded_batch(sources, src_eos)
+        target_batch = padded_batch(targets, trg_eos)
+        output_batch = padded_batch(outputs, output_eos)
 
-        entity_seqs = cols[0]
-        entity_lens = [len(e) for e in entity_seqs]
-        max_entity_len = max(entity_lens)
-        padded_entity_seqs = [right_pad(entity_seq, max_entity_len, self.meta['entity_eos_id'])
-                              for entity_seq in entity_seqs]
-        entity_mask = np.zeros((batch_size, max_entity_len))
-        for i, l in enumerate(entity_lens):
-            entity_mask[i, :l] = 1.
+        source_mask = mask_batch(source_batch, src_eos)
+        target_mask = mask_batch(target_batch, trg_eos)
+        output_mask = mask_batch(output_batch, output_eos)
 
-        data_cols = [padded_entity_seqs, entity_mask] + data_cols
+        return source_batch, source_mask, target_batch, target_mask, output_batch, output_mask
 
-        output_arrays = [np.vstack(col) for col in data_cols]
 
-        # output_arrays.extend([padded_cands, candidate_mask])
-
-        # return output_arrays, dynamic_candidate_map
-        return output_arrays
-
-    def update_model_with_user_data(self, ds, persist=False, persist_dir=None, train_spotter=True):
-        # Note: we want them at the character level so that we can dynamically retrain the spotter at the same time as
-        # Note: the linking model
-        # first pass -- parse user data and update candidate map
-        all_training_data = []
-        spotter_training_data = []
-        i = 0
-        for row, y in ds.collection('training'):
-            entities, raw_pointer_tups, sfs, text = self.parse_sequence_model_fields(row)
-
-            print('Calling data processor')
-            token_pointer_tups = self.data_processor.pointer_seqs_from_spots_and_text(raw_pointer_tups, text)
-
-            assert len(entities) == len(token_pointer_tups), 'We need a training tuple for each entity annotation'
-            for entity, (context, pointer_tup) in zip(entities, token_pointer_tups):
-                sf = tuple(context[pointer_tup[0]:pointer_tup[1]])
-                # update candidate map
-                if sf in self.candidate_map:
-                    if entity not in self.candidate_map[sf]:
-                        if entity in self.entity_dict:
-                            # Note: the second check here is to avoid overwriting singleton rules with unknown entities
-                            # TODO: remove this once we support retraining with new entities
-                            if not (len(self.candidate_map[sf]) == 1 and self.candidate_map[sf][0] not in self.entity_dict):
-                                self.candidate_map[sf].append(entity)
-                            else:
-                                logger.warn(u'I did not add the mapping {}-->{} because {} already points to an ' + \
-                                            u'unknown entity: {}'.format(sf,
-                                                                         entity,
-                                                                         sf,
-                                                                         self.candidate_map[sf][0]))
-                        else:
-                            logger.warn(u'Unknown ambiguous entity in user data: {}'.format(entity))
-                    else:
-                        logger.info(u'New training instance mapping {}-->{}'.format(sf, entity))
-                else:
-                    # add hard-mapping rule
-                    self.candidate_map[sf] = [entity]
-                    if entity not in self.entity_dict:
-                        logger.warn(u'New unknown entity in user data: {}, added rule mapping {}-->{}'.format(entity, sf, entity))
-
-                all_training_data.extend([(entity, pointer_tup, context)
-                                          for entity, (context, pointer_tup) in zip(entities, token_pointer_tups)])
-                spotter_training_data.append([text, raw_pointer_tups])
-            print(i)
-            i += 1
-
-        print('FINISHED')
-
-        # persist the new candidate map
-        cand_map_dir = os.path.join(persist_dir, 'entities/')
-        mkdir_p(cand_map_dir)
-        cand_map_path = os.path.join(cand_map_dir, 'en.recurrent_pointer.candidate_map.pkl')
-
-        cPickle.dump(self.candidate_map, open(cand_map_path, 'w'))
-        logger.info('Saved updated candidate map to: {}'.format(cand_map_path))
-
-        # retrain spotter
-        # Note: spotter could be trained async instead of blocking
-        if train_spotter:
-            spotter_docs, spotter_tups = zip(*spotter_training_data)
-            self.update_spotter(spotter_docs, spotter_tups, persist_dir=persist_dir)
-
-        # return iterator over the ambiguous training instances
-        for entity, pointer_tup, context in all_training_data:
-            sf = tuple(context[pointer_tup[0]:pointer_tup[1]])
-            if len(self.candidate_map[sf]) > 1:
-                yield (entity, json.dumps(pointer_tup), json.dumps(context))
-
-    def sequence_model_to_rec_pointer_iterator(self, row_iterator):
-        for row in row_iterator:
-            entities, raw_pointer_tups, sfs, text = self.parse_sequence_model_fields(row)
-            token_pointer_tups = self.data_processor.pointer_seqs_from_spots_and_text(raw_pointer_tups, text)
-            assert len(entities) == len(token_pointer_tups), 'We need a training tuple for each entity annotation'
-            for entity, (context, pointer_tup)in zip(entities, token_pointer_tups):
-                yield (entity, json.dumps(pointer_tup), json.dumps(context))
-
+    # WORKING HERE: create input iterators for train and dev over (source, target, output) files
     def train(self, monitor_port, restore_from=None, training_data_dir=None, training_sequence_format='sequence_model',
               persist_dir=None, logdir=None, auto_log_suffix=True,
               train_spotter=True, actual_entities=False):

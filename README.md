@@ -71,6 +71,11 @@ export MT_DATA_DIR=/media/1tb_drive/parallel_data/en-de/chris_en-de_big_corpus/t
 export OUTPUT_DIR=/media/1tb_drive/Dropbox/data/qe/model_data/en-de
 
 python scripts/map_vocab_index_to_qe_vocab.py -i $MT_DATA_DIR/de.vocab.pkl > $OUTPUT_DIR/qe_output.vocab.pkl
+# INFO:__main__:Wrote new index of size: 48361 to /media/1tb_drive/Dropbox/data/qe/model_data/en-de/qe_output.vocab.pkl
+
+# copy the other indexes to our new directory
+cp $MT_DATA_DIR/de.vocab.pkl $OUTPUT_DIR/de.vocab.pkl
+cp $MT_DATA_DIR/en.vocab.pkl $OUTPUT_DIR/en.vocab.pkl
 ```
 
 
