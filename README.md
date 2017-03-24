@@ -41,7 +41,7 @@ python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/test/test.mt > $QE_DAT
 python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/test/test.pe > $QE_DATA/test/test.pe.bpe
 ```
 
-Create the extended tag vocabularies
+Create the extended tag vocabularies, and map the tags to the subword segmentation of the MT hypotheses
 ```
 export QE_DATA=/media/1tb_drive/Dropbox/data/qe/wmt_2016
 
@@ -52,6 +52,28 @@ python scripts/split_labels_by_subword_segmentation.py -t $QE_DATA/dev/dev.mt.bp
 # test
 python scripts/split_labels_by_subword_segmentation.py -t $QE_DATA/test/test.mt.bpe < $QE_DATA/test/test_words.tags > $QE_DATA/test/test.tags.mapped 
 ```
+
+Create vocabulary dicts for source, target, and tags
+```
+# Create dicts for source and target 
+export MT_DATA_DIR=/media/1tb_drive/parallel_data/en-de/chris_en-de_big_corpus/train/bpe_20000_corpus/
+python scripts/create_vocabulary_indexes.py -s $MT_DATA_DIR/all_text.en-de.en.bpe.shuf -t $MT_DATA_DIR/all_text.en-de.de.bpe.shuf -v 25500 -o $MT_DATA_DIR -sl en -tl de
+
+# INFO:__main__:Source Vocab size: 24273
+# INFO:__main__:Target Vocab size: 24182
+
+```
+
+We can reuse vocabularies created for the same language pairs in MT experiments, for example. 
+QE training datasets are pretty small, so reusing indices from larger datasets will probably generalize better to test data.
+```
+export MT_DATA_DIR=/media/1tb_drive/parallel_data/en-de/chris_en-de_big_corpus/train/bpe_20000_corpus/
+export OUTPUT_DIR=/media/1tb_drive/Dropbox/data/qe/model_data/en-de
+
+python scripts/map_vocab_index_to_qe_vocab.py -i $MT_DATA_DIR/de.vocab.pkl > $OUTPUT_DIR/qe_output.vocab.pkl
+```
+
+
 #### Recovering the original tag schema
 
 Reduce fine-grained tags to {OK,BAD}

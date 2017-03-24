@@ -403,7 +403,6 @@ class UnidirectionalAttentiveQEModel(object):
                 # TODO: for attentive QE, we don't need to separate train and inference decoders
                 # TODO: we can directly use train decoder output at both training and prediction time
 
-                # TODO: add script to create QE output vocab: (target-token-OK, and target-token-BAD)
                 decoder_outputs_train = output_fn(decoder_outputs_train)
                 # DEBUGGING: dump these
                 self.decoder_outputs_train = decoder_outputs_train
