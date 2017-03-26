@@ -393,12 +393,15 @@ class UnidirectionalAttentiveQEModel(object):
                 num_decoder_symbols = self.output_vocab_size
                 # decoder vocab is characters or sub-words? -- either way, we need to learn the vocab over the entity set
                 # setting up weights for computing the final output
-                def create_output_fn():
-                    def output_fn(x):
-                        return layers.linear(x, num_decoder_symbols, scope=scope)
-                    return output_fn
+                # def create_output_fn():
+                #     def output_fn(x):
+                #         return layers.linear(x, num_decoder_symbols, scope=scope)
+                #     return output_fn
 
-                output_fn = create_output_fn()
+                # output_fn = create_output_fn()
+
+                output_transformation = tf.Variable((self.config['decoder_hidden_size']*2, self.output_vocab_size), name='output_transformation')
+                output_biases = tf.Variable(tf.zeros([self.output_vocab_size]), name='output_biases')
 
                 # Train decoder
                 decoder_cell = core_rnn_cell_impl.GRUCell(decoder_hidden_size)
@@ -415,9 +418,10 @@ class UnidirectionalAttentiveQEModel(object):
                 # TODO: for attentive QE, we don't need to separate train and inference decoders
                 # TODO: we can directly use train decoder output at both training and prediction time
 
-                decoder_outputs_train = output_fn(decoder_outputs_train)
+                # decoder_outputs_train = output_fn(decoder_outputs_train)
+                decoder_outputs_train = tf.matmul(decoder_outputs_train, output_transformation) + output_biases
                 # DEBUGGING: dump these
-                self.decoder_outputs_train = decoder_outputs_train
+                # self.decoder_outputs_train = decoder_outputs_train
 
             with tf.name_scope('predictions'):
                 prediction_logits = decoder_outputs_train

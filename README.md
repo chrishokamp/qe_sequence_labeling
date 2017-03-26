@@ -88,8 +88,9 @@ Evaluate using WMT F1 product evaluation script
 #### Training a QE model
 
 ```
-export QE_DATA_DIR=/home/chris/Desktop/Dropbox/data/qe/wmt_2016
-export RESOURCES=/home/chris/Desktop/Dropbox/data/qe/model_data/en-de
+export DROPBOX_DIR=/home/chris/Desktop/Dropbox/
+export QE_DATA_DIR=$DROPBOX_DIR/data/qe/wmt_2016
+export RESOURCES=$DROPBOX_DIR/data/qe/model_data/en-de
 export EXPERIMENT_DIR=/home/chris/projects/qe_sequence_labeling/experiments/test_unidirectional_qe
 
 python scripts/train_qe_model.py -t $QE_DATA_DIR/train -v $QE_DATA_DIR/dev -l $EXPERIMENT_DIR -r $RESOURCES
