@@ -400,7 +400,7 @@ class UnidirectionalAttentiveQEModel(object):
 
                 # output_fn = create_output_fn()
 
-                output_transformation = tf.Variable(tf.random_normal([self.config['decoder_hidden_size']*2, self.output_vocab_size]),
+                output_transformation = tf.Variable(tf.random_normal([self.config['decoder_hidden_size'], self.output_vocab_size]),
                                                     name='output_transformation')
                 output_biases = tf.Variable(tf.zeros([self.output_vocab_size]), name='output_biases')
 
