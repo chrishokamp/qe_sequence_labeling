@@ -700,8 +700,8 @@ class UnidirectionalAttentiveQEModel(object):
                             dev_report = {
                                 'source': dev_source,
                                 'mt': dev_mt,
-                                'output': dev_output,
-                                'pred': dev_pred,
+                                'output': output_actual,
+                                'pred': pred_actual,
                                 'acc': acc
                             }
                             dev_reports.append(dev_report)

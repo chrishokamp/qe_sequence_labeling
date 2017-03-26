@@ -141,7 +141,7 @@ def load_vocab(vocab_index_file):
     return vocab_dict, vocab_idict, vocab_size
 
 
-class UnidirectionalAttentiveQEModel(object):
+class BidirectionalAttentiveQEModel(object):
 
     def __init__(self, storage, config=None):
         self.storage = storage
@@ -341,16 +341,6 @@ class UnidirectionalAttentiveQEModel(object):
                                                                              dtype=tf.float32)
                 l_to_r_states, r_to_l_states = bidir_state
 
-                # bidirectional target representation
-                target_lengths = tf.cast(tf.reduce_sum(target_mask, axis=1), dtype=tf.int32)
-                target_bidir_outputs, target_bidir_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=cell, cell_bw=cell,
-                                                                                           inputs=target_embed,
-                                                                                           sequence_length=target_lengths,
-                                                                                           dtype=tf.float32)
-                target_l_to_r_states, target_r_to_l_states = target_bidir_state
-                target_representation = tf.concat(target_bidir_outputs, 2)
-
-
                 # Transpose to be time-major
                 # TODO: do we need to transpose?
                 # attention_states = tf.transpose(tf.concat(bidir_outputs, 2), [1, 0, 2])
@@ -373,6 +363,24 @@ class UnidirectionalAttentiveQEModel(object):
                 #     dtype=dtypes.float32,
                 #     time_major=False,
                 #     scope=scope)
+
+            with tf.name_scope('target_representation'):
+                target_lstm_cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(self.config['encoder_hidden_size'],
+                                                                                    use_peepholes=True,
+                                                                                    state_is_tuple=True),
+                                                                   input_keep_prob=dropout_prob)
+                                     for _ in range(self.config['lstm_stack_size'])]
+
+                target_cell = tf.contrib.rnn.MultiRNNCell(target_lstm_cells, state_is_tuple=True)
+                # bidirectional target representation
+                target_lengths = tf.cast(tf.reduce_sum(target_mask, axis=1), dtype=tf.int32)
+                target_bidir_outputs, target_bidir_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=target_cell, cell_bw=target_cell,
+                                                                                           inputs=target_embed,
+                                                                                           sequence_length=target_lengths,
+                                                                                           dtype=tf.float32, scope='target_bidir_rnn')
+                target_l_to_r_states, target_r_to_l_states = target_bidir_state
+                target_representation = tf.concat(target_bidir_outputs, 2)
+
 
             # Now construct the decoder
             decoder_hidden_size = self.config['decoder_hidden_size']
@@ -704,11 +712,11 @@ class UnidirectionalAttentiveQEModel(object):
                         for s, t, o, p, m in zip(source, target, output, preds, output_mask):
                             dev_source = u' '.join([self.src_vocab_idict[w] for w in s])
                             dev_mt = u' '.join([self.trg_vocab_idict[w] for w in t])
-                            dev_output = u' '.join([self.output_vocab_idict[w] for w in o])
-                            dev_pred = u' '.join([self.output_vocab_idict[w] for w in p])
                             output_len = int(sum(m))
                             pred_actual = p[:output_len]
                             output_actual = o[:output_len]
+                            dev_output = u' '.join([self.output_vocab_idict[w] for w in output_actual])
+                            dev_pred = u' '.join([self.output_vocab_idict[w] for w in pred_actual])
                             num_correct = sum([1 for p, a in zip(pred_actual, output_actual) if p == a])
                             acc = num_correct / float(output_len)
 

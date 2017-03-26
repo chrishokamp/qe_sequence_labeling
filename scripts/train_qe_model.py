@@ -10,7 +10,7 @@ import argparse
 
 from sequence_qe.dataset import parallel_iterator
 
-from sequence_qe.models import UnidirectionalAttentiveQEModel
+from sequence_qe.models import UnidirectionalAttentiveQEModel, BidirectionalAttentiveQEModel
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -62,7 +62,8 @@ if __name__ == '__main__':
         'resources': args.resources
     }
 
-    model = UnidirectionalAttentiveQEModel(storage=args.logdir, config=config)
+    #model = UnidirectionalAttentiveQEModel(storage=args.logdir, config=config)
+    model = BidirectionalAttentiveQEModel(storage=args.logdir, config=config)
 
     # WORKING HERE: init QE model, train QE model
     model.train(train_iter_func=train_iter_func, dev_iter_func=dev_iter_func)
