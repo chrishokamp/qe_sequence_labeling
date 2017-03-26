@@ -104,9 +104,9 @@ def padded_batch(seqs, padding_symbol):
 def mask_batch(batch, mask_symbol):
     mask = np.zeros(batch.shape, dtype='float32')
     # note we assume 2d here
-    for i, seq in enumerate(mask):
+    for i, seq in enumerate(batch):
         if mask_symbol in seq:
-            j = seq.index(mask_symbol)
+            j = list(seq).index(mask_symbol)
         else:
             j = len(seq)
         mask[i, :j] = 1.
@@ -148,7 +148,7 @@ class UnidirectionalAttentiveQEModel(object):
 
         default_config = {
             # model defaults (can be overridden in the .tapm)
-            'batch_size': 16,
+            'batch_size': 32,
             'num_steps': 100000,
             'validation_freq': 100,
             'training_transition_cutoff': 50000,
@@ -162,19 +162,16 @@ class UnidirectionalAttentiveQEModel(object):
 
             'bos_token': u'<S>',
             'eos_token': u'</S>',
-            'encoder_hidden_size': 150,
             'dropout_prob': 0.8,
 
             'embedding_size': 100,
+
             'ner_embedding_size': 5,
             'num_ner_tags': 6,
             'ner_padding_token': u'N',
 
-            # TODO: update for QE model
-            # 'entity_name_embedding_size': 100,
-            # 'entity_bos_id': 1,
-            # 'entity_eos_id': 2,
-            # 'max_entity_length': 50,
+            # 'max_sequence_length': 50,
+            'encoder_hidden_size': 150,
             'decoder_hidden_size': 300
         }
 
@@ -519,7 +516,10 @@ class UnidirectionalAttentiveQEModel(object):
             try:
                 source, target, output = iterator.next()
             except StopIteration:
-                break
+                if i == 0:
+                    return [], [], [], [], [], []
+                else:
+                    break
 
             source_idxs = idx_or_unk(source, self.src_vocab_dict, u'<UNK>')
             target_idxs = idx_or_unk(target, self.trg_vocab_dict, u'<UNK>')
@@ -651,9 +651,12 @@ class UnidirectionalAttentiveQEModel(object):
                 if step % val_freq == 0:
                     logger.info('Running validation...')
                     logger.info('Training loss on last batch: {}'.format(l))
+                    total_correct = 0
+                    total_instances = 0
 
                     dev_iter = dev_iter_func()
-                    dev_batch_len = self.config
+                    dev_batch_len = self.config['batch_size']
+                    dev_batch = 0
                     while dev_batch_len > 0:
                         data_cols = self.get_batch(dev_iter,
                                                    dev_batch_len,
@@ -677,8 +680,46 @@ class UnidirectionalAttentiveQEModel(object):
                         }
 
                         preds = session.run(self.predictions, feed_dict=feed_dict)
+                        preds = np.argmax(preds, axis=2)
                         # WORKING HERE: evaluate dev predictions
+                        # TODO: QE validation in separate function(s)
+                        # TODO: cut preds to true lengths
+                        # TODO: when a pred word doesn't match, it's also BAD(?)
+                        dev_reports = []
+                        for s, t, o, p, m in zip(source, target, output, preds, output_mask):
+                            dev_source = u' '.join([self.src_vocab_idict[w] for w in s])
+                            dev_mt = u' '.join([self.trg_vocab_idict[w] for w in t])
+                            dev_output = u' '.join([self.output_vocab_idict[w] for w in o])
+                            dev_pred = u' '.join([self.output_vocab_idict[w] for w in p])
+                            output_len = int(sum(m))
+                            pred_actual = p[:output_len]
+                            output_actual = o[:output_len]
+                            num_correct = sum([1 for p, a in zip(pred_actual, output_actual) if p == a])
+                            acc = num_correct / float(output_len)
 
+                            dev_report = {
+                                'source': dev_source,
+                                'mt': dev_mt,
+                                'output': dev_output,
+                                'pred': dev_pred,
+                                'acc': acc
+                            }
+                            dev_reports.append(dev_report)
+                            total_correct += num_correct
+                            total_instances += output_len
+
+                        if dev_batch == 0:
+                            dev_report_file = os.path.join(logdir, 'dev_{}.out'.format(step))
+                            with codecs.open(dev_report_file, 'w', encoding='utf8') as dev_out:
+                                dev_out.write(json.dumps(dev_reports, indent=2))
+                            logger.info('Wrote validation report to: {}'.format(dev_report_file))
+
+
+                        dev_batch += 1
+
+                    final_dev_acc = total_correct / float(total_instances)
+                    logger.info('Dev pass at step: {}, accuracy: {}'.format(step, final_dev_acc))
+                         
         logger.info("Step: {} -- Finished Training".format(step))
 
     def get_entity_embeddings_for_visualization(self, logdir, actual_entities=False):
