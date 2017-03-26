@@ -78,10 +78,24 @@ cp $MT_DATA_DIR/de.vocab.pkl $OUTPUT_DIR/de.vocab.pkl
 cp $MT_DATA_DIR/en.vocab.pkl $OUTPUT_DIR/en.vocab.pkl
 ```
 
-
 #### Recovering the original tag schema
 
 Reduce fine-grained tags to {OK,BAD}
 Evaluate using WMT F1 product evaluation script
+ 
+### Running QE Experiments
+
+#### Training a QE model
+
+```
+export QE_DATA_DIR=/home/chris/Desktop/Dropbox/data/qe/wmt_2016
+export RESOURCES=/home/chris/Desktop/Dropbox/data/qe/model_data/en-de
+export EXPERIMENT_DIR=/home/chris/projects/qe_sequence_labeling/experiments/test_unidirectional_qe
+
+python scripts/train_qe_model.py -t $QE_DATA_DIR/train -v $QE_DATA_DIR/dev -l $EXPERIMENT_DIR -r $RESOURCES
+```
+
+
+
 
 

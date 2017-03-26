@@ -148,13 +148,11 @@ class UnidirectionalAttentiveQEModel(object):
 
         default_config = {
             # model defaults (can be overridden in the .tapm)
-            'context_length': 50, # input context length in words -- currrently this must be >= dataset maximum length
-            'batch_size': 2,
+            'batch_size': 16,
             'num_steps': 100000,
             'validation_freq': 100,
             'training_transition_cutoff': 50000,
             'max_gradient_norm': 1.0,
-            'embedding_size': 100,
             'lstm_stack_size': 2,
             'regularization_alpha': 0.0001,
             'unknown_token': u'<UNK>',
@@ -164,29 +162,29 @@ class UnidirectionalAttentiveQEModel(object):
 
             'bos_token': u'<S>',
             'eos_token': u'</S>',
-            'recurrent_layer_size': 150,
+            'encoder_hidden_size': 150,
             'dropout_prob': 0.8,
 
+            'embedding_size': 100,
             'ner_embedding_size': 5,
             'num_ner_tags': 6,
             'ner_padding_token': u'N',
 
             # TODO: update for QE model
-            # for name-gen seq2seq models
-            'entity_name_embedding_size': 100,
-            'entity_bos_id': 1,
-            'entity_eos_id': 2,
-            'max_entity_length': 50,
+            # 'entity_name_embedding_size': 100,
+            # 'entity_bos_id': 1,
+            # 'entity_eos_id': 2,
+            # 'max_entity_length': 50,
             'decoder_hidden_size': 300
         }
 
         if config is None:
             config = {}
+        self.config = dict(default_config, **config)
 
         # this is to make results deterministic
         self.random_seed = 42
 
-        self.config = dict(default_config, **config)
 
         # adds factored embeddings for NER tags
         # NER TAG DICT
@@ -198,21 +196,7 @@ class UnidirectionalAttentiveQEModel(object):
         self.validation_records = OrderedDict()
 
         # WORKING: evaluate with WMT 16 QE data
-
-        # TODO: segment labels, target, and source into sub-words
         # TODO: where there are factors, these need to be segmented as well
-        # self.data_processor = DataProcessor(start_token=self.meta['start_token'],
-        #                                     end_token=self.meta['end_token'],
-        #                                     max_sequence_length=self.meta['context_length'],
-        #                                     keep_start_end_tokens=self.meta['keep_start_end_tokens'],
-        #                                     use_subword=True,
-        #                                     subword_codes='/media/1tb_drive/wiki2vec_data/en/text_for_word_vectors/subword_encoding/full_wikipedia.en.20000.bpe.codes')
-
-        self.data_processor = DataProcessor(start_token=self.meta['start_token'],
-                                            end_token=self.meta['end_token'],
-                                            max_sequence_length=self.meta['context_length'],
-                                            use_subword=False)
-
 
         # TODO: configure source and target languages
         # Note: language hardcoding for now
@@ -222,10 +206,10 @@ class UnidirectionalAttentiveQEModel(object):
         # TODO: source, target, and output vocab dicts and idicts
         logger.info('Loading vocabulary indices')
 
-        index_dir='/media/1tb_drive/Dropbox/data/qe/model_data/en-de'
-        src_index = '/media/1tb_drive/Dropbox/data/qe/model_data/en-de/en.vocab.pkl'
-        trg_index = '/media/1tb_drive/Dropbox/data/qe/model_data/en-de/de.vocab.pkl'
-        output_index = '/media/1tb_drive/Dropbox/data/qe/model_data/en-de/qe_output.vocab.pkl'
+        index_dir = self.config['resources']
+        src_index = os.path.join(index_dir, 'en.vocab.pkl')
+        trg_index = os.path.join(index_dir, 'de.vocab.pkl')
+        output_index = os.path.join(index_dir, 'qe_output.vocab.pkl')
 
         self.src_vocab_dict, self.src_vocab_idict, self.src_vocab_size = load_vocab(src_index)
         self.trg_vocab_dict, self.trg_vocab_idict, self.trg_vocab_size = load_vocab(trg_index)
@@ -236,7 +220,8 @@ class UnidirectionalAttentiveQEModel(object):
         #self.pretrained_embeddings = os.path.join(os.path.dirname(__file__),
         #                                          'resources/embeddings/full_wikipedia.vecs.npz')
         # self.pretrained_embeddings = '/media/1tb_drive/wiki2vec_data/en/text_for_word_vectors/subword_vectors/full_wikipedia.subword.vecs.npz'
-        self.pretrained_source_embeddings = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vecs.npz'
+        # self.pretrained_source_embeddings = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vecs.npz'
+        self.pretrained_source_embeddings = False
 
 
         # some of the ops that self._build_graph sets as properties on this instance
@@ -340,7 +325,7 @@ class UnidirectionalAttentiveQEModel(object):
             # Construct input representation that we'll put attention over
             # Note: dropout is turned on/off by `dropout_prob`
             with tf.name_scope('input_representation'):
-                lstm_cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(self.config['recurrent_layer_size'],
+                lstm_cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(self.config['encoder_hidden_size'],
                                                                                     use_peepholes=True,
                                                                                     state_is_tuple=True),
                                                             input_keep_prob=dropout_prob)
@@ -366,8 +351,8 @@ class UnidirectionalAttentiveQEModel(object):
 
                 # Note: encoder is bidirectional, so we reduce dimensionality by 1/2 to make decoder initial state
                 init_state_transformation = tf.get_variable('decoder_init_transform',
-                                                            self.config['embedding_size']*2,
-                                                            self.config['embedding_size'])
+                                                            (self.config['encoder_hidden_size']*2,
+                                                             self.config['decoder_hidden_size']))
                 initialization_state = tf.matmul(tf.concat([r_to_l_states[-1][1], l_to_r_states[-1][1]], 1),
                                                  init_state_transformation)
 
@@ -473,7 +458,7 @@ class UnidirectionalAttentiveQEModel(object):
             optimizer = tf.train.AdamOptimizer()
             with tf.name_scope('train'):
                 gradients = optimizer.compute_gradients(cost, tf.trainable_variables())
-                if self.meta['max_gradient_norm'] is not None:
+                if self.config['max_gradient_norm'] is not None:
                     gradients, variables = zip(*gradients)
                     clipped_gradients, _ = clip_ops.clip_by_global_norm(gradients, self.config['max_gradient_norm'])
                     gradients = list(zip(clipped_gradients, variables))
@@ -515,7 +500,6 @@ class UnidirectionalAttentiveQEModel(object):
           (source, source_mask, target, target_mask, output, output_mask)
         """
 
-        data = []
         i = 0
         sources = []
         targets = []
@@ -557,51 +541,34 @@ class UnidirectionalAttentiveQEModel(object):
 
 
     # WORKING HERE: create input iterators for train and dev over (source, target, output) files
-    def train(self, monitor_port, restore_from=None, training_data_dir=None, training_sequence_format='sequence_model',
-              persist_dir=None, logdir=None, auto_log_suffix=True,
-              train_spotter=True, actual_entities=False):
-        """Supports two training modes: one over user data, and one over gzipped files"""
+    def train(self, train_iter_func, dev_iter_func, restore_from=None, persist_dir=None, logdir=None, auto_log_suffix=True,
+              start_iteration=0, shuffle=True):
+        """
+        Training and dev checks for QE sequence modelsi
 
-        monitor = tap.classifier.TrainingMonitor(monitor_port)
-        ds = tap.dataset.Dataset.load(self.model.dataset)
+        Params:
+          training_iter_func: function which returns iterable over (source, mt, labels) instances
+          dev_iter_func: function which returns iterable over (source, mt, labels) instances
+
+        """
 
         if logdir is None:
             logdir = os.path.join(self.storage, 'logs')
         if persist_dir is None:
             persist_dir = os.path.dirname(__file__)
 
-        if training_data_dir is not None:
-            assert os.path.isdir(training_data_dir), '`training_data_dir` must point to a directory'
-            # hook to get an iterator over all files in dir
-            if training_sequence_format == 'sequence_model':
-                # WORKING: iterator over instances in sequence model
-                data_iter = directory_iterator(training_data_dir, gzip=False)
-                data_iter = self.sequence_model_to_rec_pointer_iterator(data_iter)
-            elif training_sequence_format != 'recurrent_pointer_model':
-                data_iter = directory_iterator(training_data_dir, gzip=True)
-            else:
-                raise ValueError('Unknown training_sequence_format: {}'.format(training_sequence_format))
+        training_iter = train_iter_func()
+        # wrap the data iter to add functionality
+        if shuffle:
+            training_iter = shuffle_instances_iterator(training_iter, shuffle_factor=5000)
 
-            training_data_iter = itertools.cycle(data_iter)
+        training_iter = itertools.cycle(training_iter)
 
-            training_data_iter = shuffle_instances_iterator(training_data_iter, shuffle_factor=5000)
-        else:
-            # This is the flow for user-provided training data -- optionally updates the spotter as well
-            # Updates:
-            # (1) the candidate map
-            # (2) the spotter(s) -- potentially both probabalistic and string-matching
-            # (3) the model -- this should only be for the portion of the training data that is ambiguous
-            training_data_iter = self.update_model_with_user_data(ds, persist=True, persist_dir=persist_dir,
-                                                                  train_spotter=train_spotter)
-            training_data_iter = itertools.cycle(training_data_iter)
-
-        # Validation set
-        test_data = [i for i, y in ds.collection('test')]
-        test_data_iter = itertools.cycle(self.sequence_model_to_rec_pointer_iterator(test_data))
-        len_test = len(test_data)
-
-        # load pretrained word embeddings
-        word_embeddings = np.load(open(self.pretrained_embeddings))
+        # load pretrained source word embeddings
+        source_embeddings = None
+        if self.config.get('source_embeddings') is not None:
+            source_embeddings = np.load(open(self.config['source_embeddings']))
+        # TODO: support pretrained target and output vocabulary embeddings
 
         if auto_log_suffix:
             log_suffix = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -610,7 +577,7 @@ class UnidirectionalAttentiveQEModel(object):
             output_logdir = logdir
 
         mkdir_p(output_logdir)
-        self.train_writer = tf.summary.FileWriter(output_logdir, self.graph)
+        train_writer = tf.summary.FileWriter(output_logdir, self.graph)
 
         logger.info('Running session, logdir is: {}'.format(output_logdir))
         with tf.Session(graph=self.graph, config=config) as session:
@@ -618,67 +585,54 @@ class UnidirectionalAttentiveQEModel(object):
             # Initialization ops
             if restore_from is None:
                 tf.initialize_all_variables().run()
+                logger.info('Initialized')
 
                 # Pretrained Word Embeddings
-                session.run(tf.assign(self.word_embeddings, word_embeddings))
-                logger.info('Initialized, word embeddings loaded from: {}'.format(self.pretrained_embeddings))
+                if source_embeddings is not None:
+                    session.run(tf.assign(self.word_embeddings, source_embeddings))
+                    logger.info('Source word embeddings loaded from: {}'.format(self.config['source_embeddings']))
             else:
                 self.saver.restore(session, restore_from)
                 logger.info('restored trained model from: {}'.format(restore_from))
 
             average_loss = 0
 
-            num_test_batches = int(np.ceil(len_test / self.meta['batch_size']))
-            val_freq = self.meta['validation_freq']
+            val_freq = self.config['validation_freq']
 
             # SGD loop
-            for step in range(self.meta['num_steps']):
+            for step in range(self.config['num_steps']):
 
                 if step % 10 == 0:
                     logger.info('running step: {}'.format(step))
-                    progress = float(step) / float(self.meta['num_steps'])
-                    monitor.progress(progress)
 
-                # transitions to only optimizing entity representations after a certain number of iters
-                # generate a batch
-                #logger.info('about to get batch: {}'.format(step))
-                data_cols = self.get_batch(training_data_iter,
-                                           self.meta['batch_size'],
-                                           sample_prob=self.meta['sample_prob'],
-                                           smart_sampling=True,
-                                           actual_entities=actual_entities)
-                #logger.info('got batch: {}'.format(step))
+                data_cols = self.get_batch(training_iter,
+                                           self.config['batch_size'],
+                                           sample_prob=self.config['sample_prob'])
 
-                if self.use_ner_embeddings:
-                    entity_seq, entity_mask, idx_tuple, context, context_mask, ner_context = data_cols
-                else:
-                    entity_seq, entity_mask, idx_tuple, context, context_mask = data_cols
-                    ner_context = None
+                source, source_mask, target, target_mask, output, output_mask = data_cols
 
                 feed_dict = {
-                    self.entity: entity_seq,
-                    self.entity_mask: entity_mask,
-                    self.idx_tuple: idx_tuple,
-                    self.context: ner_context,
-                    self.context_mask: ner_context,
-                    self.ner_context: ner_context,
-                    self.dropout_prob: self.meta['dropout_prob']
+                    self.source: source,
+                    self.source_mask: source_mask,
+                    self.target: target,
+                    self.target_mask: target_mask,
+                    self.output: output,
+                    self.output_mask: output_mask,
+                    self.dropout_prob: self.config['dropout_prob']
                 }
-                # print([[self.name_generation_idict[c] for c in seq] for seq in entity_seq])
 
-                if step < self.meta['training_transition_cutoff']:
-                    decoder_outputs_train = session.run([self.decoder_outputs_train], feed_dict=feed_dict)
-                    _, l, summary = session.run([self.full_graph_optimizer,
-                                                self.cost,
-                    #                             # self.accuracy,
-                                                self.merged], feed_dict=feed_dict)
-                else:
-                    _, l, summary = session.run([self.entity_representation_optimizer,
-                                                           self.cost,
-                                                           # self.accuracy,
-                                                           self.merged], feed_dict=feed_dict)
+                # if step < self.config['training_transition_cutoff']:
+                _, l, summary = session.run([self.full_graph_optimizer,
+                                            self.cost,
+                #                             # self.accuracy,
+                                            self.merged], feed_dict=feed_dict)
+                # else:
+                #     _, l, summary = session.run([self.entity_representation_optimizer,
+                #                                            self.cost,
+                #                                            # self.accuracy,
+                #                                            self.merged], feed_dict=feed_dict)
 
-                self.train_writer.add_summary(summary, step)
+                train_writer.add_summary(summary, step)
 
                 average_loss += l
 
@@ -687,104 +641,32 @@ class UnidirectionalAttentiveQEModel(object):
                     logger.info('Running validation...')
                     logger.info('Training loss on last batch: {}'.format(l))
 
-                    test_predictions = []
-                    test_entities = []
-                    baseline_preds = []
+                    dev_iter = dev_iter_func()
+                    dev_batch_len = self.config
+                    while dev_batch_len > 0:
+                        data_cols = self.get_batch(dev_iter,
+                                                   dev_batch_len,
+                                                   sample_prob=1.0)
 
-                    per_sf_predictions = defaultdict(list)
-                    per_sf_baseline = defaultdict(list)
-                    per_sf_ground_truth = defaultdict(list)
+                        # this will be zero once the iterator has finished
+                        dev_batch_len = len(data_cols[0])
+                        if dev_batch_len == 0:
+                            continue
 
-                    for b in range(num_test_batches):
-                        data_cols = self.get_batch(test_data_iter,
-                                                   self.meta['batch_size'],
-                                                   sample_prob=1.0,
-                                                   smart_sampling=True,
-                                                   actual_entities=actual_entities)
-
-                        if self.use_ner_embeddings:
-                            entity_seq, entity_mask, idx_tuple, context, context_mask, ner_context = data_cols
-                        else:
-                            entity_seq, entity_mask, idx_tuple, context, context_mask = data_cols
-                            ner_context = None
+                        source, source_mask, target, target_mask, output, output_mask = data_cols
 
                         feed_dict = {
-                            self.entity: entity_seq,
-                            self.entity_mask: entity_mask,
-                            self.idx_tuple: idx_tuple,
-                            self.context: context,
-                            self.context_mask: context_mask,
-                            self.ner_context: ner_context,
+                            self.source: source,
+                            self.source_mask: source_mask,
+                            self.target: target,
+                            self.target_mask: target_mask,
+                            self.output: output,
+                            self.output_mask: output_mask,
                             self.dropout_prob: 1.0
                         }
 
                         preds = session.run(self.predictions, feed_dict=feed_dict)
-                        preds = list(np.argmax(preds, axis=2))
-                        generated_names = [u''.join([self.name_generation_idict[c] for c in seq]) for seq in preds]
-                        actual_names = [u''.join([self.name_generation_idict[c] for c in seq]) for seq in entity_seq]
-                        print(zip(generated_names, actual_names))
-
-                        #logger.info('Iter: {} dev-batch: {}, accuracy: {}'.format(step, b, dev_accuracy))
-
-                        # now map back from the dynamic index to the global entity index
-                        # we don't need to do this at validation time, just when outputting predictions to the end user
-                        # if not actual_entities:
-                        #     preds = [dynamic_map[(i,j)] for i,j in enumerate(preds)]
-                        #     entity = [dynamic_map[(i,j)] for i,j in enumerate(entity.flatten())]
-                        # else:
-                        #     entity = entity.flatten()
-
-                        # WORKING: predictions are now sequences of characters
-                        # test_predictions.extend(preds)
-                        # test_entities.extend(entity)
-
-                        # Test most frequent baselines
-                        # y_most_freq_baseline = [self.entity_idict[e_cands[0]] for e_cands in candidates]
-                        # baseline_preds.extend(y_most_freq_baseline)
-
-                        # per SF
-                        # surface_forms = [tuple(self.vocab_idict[idx] for idx in context_i[pointer_i[0]:pointer_i[1]])
-                        #                  for context_i, pointer_i in zip(context, idx_tuple)]
-                        # for sf, pred, true, cands in zip(surface_forms, preds, entity, candidates):
-                        #     per_sf_predictions[sf].append(pred)
-                        #     per_sf_baseline[sf].append(cands[0])
-                        #     per_sf_ground_truth[sf].append(true)
-
-                    # map entities back to names
-                    # try:
-                    #     y_hat = [self.entity_idict[e_idx] for e_idx in test_predictions]
-                    #     y_true = [self.entity_idict[e_idx] for e_idx in test_entities]
-                    # except:
-                    #     import ipdb; ipdb.set_trace()
-                    #
-                    # test_acc = sum(np.array(y_hat) == np.array(y_true)) / float(len(test_entities))
-                    # baseline_acc = sum(np.array(baseline_preds) == np.array(y_true)) / float(len(test_entities))
-                    # with codecs.open(self.training_log_file, 'a', encoding='utf8') as logfile:
-                    #     logfile.write('ITER: {} TEST_ACC: {}, BASELINE: {}\n'.format(step, test_acc, baseline_acc))
-                    #
-                    # all_dev_sfs = sorted(per_sf_ground_truth.keys(), key=lambda x: len(per_sf_ground_truth[x]),
-                    #                      reverse=True)
-                    # per_sf_accs = OrderedDict([(u' '.join(sf),
-                    #                            sum(np.array(per_sf_predictions[sf]) == np.array(per_sf_ground_truth[sf]))
-                    #                            / float(len(per_sf_ground_truth[sf])))
-                    #                            for sf in all_dev_sfs])
-                    # per_sf_baseline_accs = OrderedDict([(u' '.join(sf),
-                    #                             sum(np.array(per_sf_baseline[sf]) == np.array(per_sf_ground_truth[sf]))
-                    #                             / float(len(per_sf_ground_truth[sf])))
-                    #                            for sf in all_dev_sfs])
-                    #
-                    # per_sf_baseline_diffs = OrderedDict([(u' '.join(sf), per_sf_accs[u' '.join(sf)] - per_sf_baseline_accs[u' '.join(sf)])
-                    #                                     for sf in all_dev_sfs])
-                    #
-                    # logger.info("Iter {}: Validation Accuracy on test set: {}".format(step, test_acc))
-                    # logger.info("Iter {}: Most freq baseline: {}".format(step, baseline_acc))
-                    # logger.info("Iter {}: per SF accs: {}".format(step, json.dumps(per_sf_accs)))
-                    # logger.info("Iter {}: per SF baseline accs: {}".format(step, json.dumps(per_sf_baseline_accs)))
-                    # logger.info("Iter {}: per SF baseline diffs: {}".format(step, json.dumps(per_sf_baseline_diffs)))
-                    # self.validation_records[step] = test_acc
-                    # if test_acc == max(v for k,v in self.validation_records.items()):
-                    #     save_path = self.saver.save(session, os.path.join(persist_dir, 'model.ckpt'))
-                    #     logger.info("Step: {} -- {} is the best score so far, model saved in file: {}".format(step, test_acc, save_path))
+                        # WORKING HERE: evaluate dev predictions
 
         logger.info("Step: {} -- Finished Training".format(step))
 
@@ -797,14 +679,12 @@ class UnidirectionalAttentiveQEModel(object):
         test_data_iter = itertools.cycle(self.sequence_model_to_rec_pointer_iterator(ds.collections['test']['examples']))
         len_test = len(test_data)
 
-        num_test_batches = int(np.ceil(len_test / self.meta['batch_size']))
-
         # get the entity representations for all of the dev instances
         all_representations = []
         entity_names = []
         for b in range(num_test_batches):
             data_cols, dynamic_map = self.get_batch(test_data_iter,
-                                                    self.meta['batch_size'],
+                                                    self.config['batch_size'],
                                                     sample_prob=1.0,
                                                     smart_sampling=True,
                                                     actual_entities=actual_entities)

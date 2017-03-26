@@ -2,7 +2,9 @@ import codecs
 import itertools
 
 
-def parallel_iterator(src_iter, trg_iter):
+def parallel_iterator(*iters):
+    for lines in itertools.izip(*iters):
+        lines = [line.strip().split() for line in lines]
+        yield lines
 
-    for src_l, trg_l in itertools.izip(src_iter, trg_iter):
-        yield (src_l, trg_l)
+
