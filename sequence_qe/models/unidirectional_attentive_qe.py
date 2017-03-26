@@ -420,7 +420,13 @@ class UnidirectionalAttentiveQEModel(object):
                 # TODO: we can directly use train decoder output at both training and prediction time
 
                 # decoder_outputs_train = output_fn(decoder_outputs_train)
-                decoder_outputs_train = tf.matmul(decoder_outputs_train, output_transformation) + output_biases
+                output_shape = tf.shape(decoder_outputs_train)
+                decoder_outputs_train = tf.matmul(tf.reshape(decoder_outputs_train,
+                                                             [output_shape[0] * output_shape[1], -1]),
+                                                  output_transformation)
+                decoder_outputs_train += output_biases
+                decoder_outputs_train = tf.reshape(decoder_outputs_train, [output_shape[0], output_shape[1], -1])
+
                 # DEBUGGING: dump these
                 # self.decoder_outputs_train = decoder_outputs_train
 
