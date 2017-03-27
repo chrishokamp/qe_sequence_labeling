@@ -320,7 +320,8 @@ class BidirectionalAttentiveQEModel(object):
                 lstm_cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(self.config['encoder_hidden_size'],
                                                                                     use_peepholes=True,
                                                                                     state_is_tuple=True),
-                                                            input_keep_prob=dropout_prob)
+                                                            input_keep_prob=dropout_prob,
+                                                            output_keep_prob=dropout_prob)
                               for _ in range(self.config['lstm_stack_size'])]
 
                 cell = tf.contrib.rnn.MultiRNNCell(lstm_cells, state_is_tuple=True)
@@ -363,7 +364,8 @@ class BidirectionalAttentiveQEModel(object):
                 target_lstm_cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(self.config['encoder_hidden_size'],
                                                                                     use_peepholes=True,
                                                                                     state_is_tuple=True),
-                                                                   input_keep_prob=dropout_prob)
+                                                                   input_keep_prob=dropout_prob,
+                                                                   output_keep_prob=dropout_prob)
                                      for _ in range(self.config['lstm_stack_size'])]
 
                 target_cell = tf.contrib.rnn.MultiRNNCell(target_lstm_cells, state_is_tuple=True)
@@ -434,6 +436,9 @@ class BidirectionalAttentiveQEModel(object):
 
                 # concat with target lm representation
                 decoder_outputs_train = tf.concat([decoder_outputs_train, target_representation], 2)
+                decoder_outputs_train = tf.nn.elu(decoder_outputs_train)
+                decoder_outputs_train = tf.nn.dropout(decoder_outputs_train, keep_prob=dropout_prob)
+
                 output_shape = tf.shape(decoder_outputs_train)
 
                 decoder_outputs_train = tf.matmul(tf.reshape(decoder_outputs_train,
