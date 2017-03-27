@@ -147,41 +147,41 @@ class BidirectionalAttentiveQEModel(object):
         self.storage = storage
 
         default_config = {
-            # model defaults (can be overridden in the .tapm)
+            # training
             'batch_size': 32,
             'num_steps': 100000,
             'validation_freq': 100,
-            'training_transition_cutoff': 50000,
+            'training_transition_cutoff': 100000,
             'max_gradient_norm': 1.0,
-            'lstm_stack_size': 2,
-            'regularization_alpha': 0.0001,
-            'unknown_token': u'<UNK>',
             'learning_rate': 0.1,
-            'save_path': 'model.ckpt',
-            'sample_prob': 0.5,
-
-            'bos_token': u'<S>',
-            'eos_token': u'</S>',
             'dropout_prob': 0.8,
+            'regularization_alpha': 0.0001,
+            'bad_class_weight': 3,
 
+            # model
+            'lstm_stack_size': 2,
             'embedding_size': 100,
+            'encoder_hidden_size': 150,
+            'decoder_hidden_size': 300
 
             'ner_embedding_size': 5,
             'num_ner_tags': 6,
             'ner_padding_token': u'N',
 
-            # 'max_sequence_length': 50,
-            'encoder_hidden_size': 150,
-            'decoder_hidden_size': 300
+            # data
+            'sample_prob': 0.5,
+            'unknown_token': u'<UNK>',
+            'bos_token': u'<S>',
+            'eos_token': u'</S>',
         }
 
         if config is None:
             config = {}
+
         self.config = dict(default_config, **config)
 
         # this is to make results deterministic
         self.random_seed = 42
-
 
         # adds factored embeddings for NER tags
         # NER TAG DICT
@@ -192,12 +192,7 @@ class BidirectionalAttentiveQEModel(object):
         self.training_log_file = os.path.join(self.storage, 'training_log.out')
         self.validation_records = OrderedDict()
 
-        # WORKING: evaluate with WMT 16 QE data
         # TODO: where there are factors, these need to be segmented as well
-
-        # TODO: configure source and target languages
-        # Note: language hardcoding for now
-        self.lang = 'en'
 
         # Note that there is a dependency between the vocabulary index and the embedding matrix
         # TODO: source, target, and output vocab dicts and idicts
@@ -219,7 +214,6 @@ class BidirectionalAttentiveQEModel(object):
         # self.pretrained_embeddings = '/media/1tb_drive/wiki2vec_data/en/text_for_word_vectors/subword_vectors/full_wikipedia.subword.vecs.npz'
         # self.pretrained_source_embeddings = '/media/1tb_drive/wiki2vec_data/en/interesting_sfs/president_king_queen_pm/embeddings/president_king_queen_pm.vecs.npz'
         self.pretrained_source_embeddings = False
-
 
         # some of the ops that self._build_graph sets as properties on this instance
         self.graph = None
@@ -405,7 +399,7 @@ class BidirectionalAttentiveQEModel(object):
 
                 # Note: this is different from the "normal" seq2seq encoder-decoder model, because we have different
                 # input and output vocabularies for the decoder (target vocab vs. QE symbols)
-                num_decoder_symbols = self.output_vocab_size
+                # num_decoder_symbols = self.output_vocab_size
                 # decoder vocab is characters or sub-words? -- either way, we need to learn the vocab over the entity set
                 # setting up weights for computing the final output
                 # def create_output_fn():
@@ -519,6 +513,16 @@ class BidirectionalAttentiveQEModel(object):
 
             logger.info('Finished building model graph')
 
+    def weight_bad_tokens_in_mask(self, output_seqs, mask, weight_factor):
+        new_mask = np.zeros_like(mask)
+        for i, (seq, mask_row) in enumerate(output_seqs, mask):
+            # get indexes of BAD tokens
+            bad_token_idxs = [idx for idx, tok_idx in enumerate(seq)
+                              if self.output_vocab_idict[tok_idx].endswith('BAD')]
+            mask_row[bad_token_idxs] *= weight_factor
+            new_mask[i] = mask_row
+        return new_mask
+
     def get_batch(self, iterator, batch_size, sample_prob=1.0):
         """
 
@@ -571,6 +575,11 @@ class BidirectionalAttentiveQEModel(object):
         target_mask = mask_batch(target_batch, trg_eos)
         output_mask = mask_batch(output_batch, output_eos)
 
+        # WORKING: optionally weight BAD tokens higher
+        bad_class_weight = self.config.get('bad_class_weight', None)
+        if bad_class_weight is not None:
+            output_mask = self.weight_bad_tokens_with_mask(outputs, output_mask, bad_class_weight)
+
         return source_batch, source_mask, target_batch, target_mask, output_batch, output_mask
 
 
@@ -578,7 +587,7 @@ class BidirectionalAttentiveQEModel(object):
     def train(self, train_iter_func, dev_iter_func, restore_from=None, persist_dir=None, logdir=None, auto_log_suffix=True,
               start_iteration=0, shuffle=True):
         """
-        Training and dev checks for QE sequence modelsi
+        Training with dev checks for QE sequence models
 
         Params:
           training_iter_func: function which returns iterable over (source, mt, labels) instances
@@ -610,6 +619,7 @@ class BidirectionalAttentiveQEModel(object):
         else:
             output_logdir = logdir
 
+        dev_perfs = OrderedDict()
         mkdir_p(output_logdir)
         train_writer = tf.summary.FileWriter(output_logdir, self.graph)
 
@@ -711,10 +721,7 @@ class BidirectionalAttentiveQEModel(object):
 
                         preds = session.run(self.predictions, feed_dict=feed_dict)
                         preds = np.argmax(preds, axis=2)
-                        # WORKING HERE: evaluate dev predictions
-                        # TODO: QE validation in separate function(s)
-                        # TODO: cut preds to true lengths
-                        # TODO: when a pred word doesn't match, it's also BAD(?)
+
                         for s, t, o, p, m in zip(source, target, output, preds, output_mask):
                             dev_source = [self.src_vocab_idict[w] for w in s]
 
@@ -759,8 +766,17 @@ class BidirectionalAttentiveQEModel(object):
                         dev_out.write(json.dumps(dev_reports, indent=2))
                     logger.info('Wrote validation report to: {}'.format(dev_report_file))
 
-                    final_dev_acc = total_correct / float(total_instances)
-                    logger.info('Dev pass at step: {}, accuracy: {}'.format(step, final_dev_acc))
+                    dev_perf = evaluation_report['f1_product']
+                    dev_perfs[step] = dev_perf
+                    # if model is the best so far, save it
+                    if dev_perf == max(v for k, v in self.dev_perfs.items()):
+                        save_path = self.saver.save(session, os.path.join(persist_dir, 'best_model.ckpt'))
+                        logger.info("Step: {} -- {} is the best score so far, model saved in file: {}".format(step, dev_perf, save_path))
+                    if step % 10000 == 0:
+                        save_path = self.saver.save(session, os.path.join(persist_dir, 'model_{}.ckpt'.format(step)))
+                        logger.info("Step: {} -- checkpoint model saved in file: {}".format(step, save_path))
+
+
 
         logger.info("Step: {} -- Finished Training".format(step))
 

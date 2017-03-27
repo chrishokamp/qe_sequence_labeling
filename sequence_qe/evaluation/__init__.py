@@ -139,6 +139,16 @@ def truncate_at_eos(mt, preds, true, eos_token=u'</S>'):
     return no_eos_mt, no_eos_preds, no_eos_true
 
 
+def accuracy(preds, true):
+    correct = 0
+    total = 0
+    for p, t in zip(preds, true):
+        assert len(p) == len(t)
+        correct += sum([1 for p_w, t_w in zip(p, t) if p_w==t_w])
+        total += len(p)
+    return float(correct) / float(total)
+
+
 def qe_output_evaluation(mt, preds, true):
     """
     Return a score report for the output of a QE Model
@@ -160,6 +170,8 @@ def qe_output_evaluation(mt, preds, true):
     no_seg_preds, orig_mt = unsegment_labels(reduced_preds, mt)
     no_seg_true, orig_mt = unsegment_labels(reduced_true, mt)
 
+    acc = accuracy(no_seg_preds, no_seg_true)
+
     # get the f1 scores
     class_f1s = f1_scores(no_seg_preds, no_seg_true)
     f1_bad = class_f1s['BAD']
@@ -168,6 +180,7 @@ def qe_output_evaluation(mt, preds, true):
     f1_product = f1_bad * f1_ok
 
     evaluation_record = {
+        'accuracy': acc,
         'f1_bad': f1_bad,
         'f1_ok': f1_ok,
         'f1_product': f1_product
