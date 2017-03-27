@@ -416,7 +416,7 @@ class BidirectionalAttentiveQEModel(object):
                 output_transformation_1 = tf.Variable(tf.random_normal([self.config['decoder_hidden_size'] + self.config['encoder_hidden_size']*2,
                                                                         intermediate_dim]),
                                                     name='output_transformation_1')
-                output_biases_1 = tf.Variable(tf.zeros([self.output_vocab_size]), name='output_biases_1')
+                output_biases_1 = tf.Variable(tf.zeros([intermediate_dim]), name='output_biases_1')
 
                 output_transformation_2 = tf.Variable(tf.random_normal([intermediate_dim,
                                                                         self.output_vocab_size]),
