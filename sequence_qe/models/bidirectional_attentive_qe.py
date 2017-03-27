@@ -15,9 +15,6 @@ import codecs
 import datetime
 from collections import OrderedDict, defaultdict
 
-from semantic_annotator.datasets import DataProcessor, mkdir_p
-from semantic_annotator.spotting import SpacyNERSpotter
-
 import numpy as np
 import tensorflow as tf
 
@@ -37,6 +34,9 @@ from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.contrib.tensorboard.plugins import projector
+
+from sequence_qe.dataset import mkdir_p
+from sequence_qe.evaluation import qe_output_evaluation
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -680,7 +680,12 @@ class BidirectionalAttentiveQEModel(object):
 
                     total_correct = 0
                     total_instances = 0
-                    dev_reports = []
+                    source_out = []
+                    mt_out = []
+                    output_out = []
+                    pred_out = []
+                    acc_out = []
+
                     dev_batch = 0
                     while dev_batch_len > 0:
                         data_cols = self.get_batch(dev_iter,
@@ -711,28 +716,43 @@ class BidirectionalAttentiveQEModel(object):
                         # TODO: cut preds to true lengths
                         # TODO: when a pred word doesn't match, it's also BAD(?)
                         for s, t, o, p, m in zip(source, target, output, preds, output_mask):
-                            dev_source = u' '.join([self.src_vocab_idict[w] for w in s])
-                            dev_mt = u' '.join([self.trg_vocab_idict[w] for w in t])
+                            dev_source = [self.src_vocab_idict[w] for w in s]
+
                             output_len = int(sum(m))
+                            mt_actual = t[:output_len]
                             pred_actual = p[:output_len]
                             output_actual = o[:output_len]
-                            dev_output = u' '.join([self.output_vocab_idict[w] for w in output_actual])
-                            dev_pred = u' '.join([self.output_vocab_idict[w] for w in pred_actual])
+                            dev_mt = [self.trg_vocab_idict[w] for w in mt_actual]
+                            dev_pred = [self.output_vocab_idict[w] for w in pred_actual]
+                            dev_output = [self.output_vocab_idict[w] for w in output_actual]
+
                             num_correct = sum([1 for p, a in zip(pred_actual, output_actual) if p == a])
                             acc = num_correct / float(output_len)
 
-                            dev_report = {
-                                'source': dev_source,
-                                'mt': dev_mt,
-                                'output': dev_output,
-                                'pred': dev_pred,
-                                'acc': acc
-                            }
-                            dev_reports.append(dev_report)
+                            source_out.append(dev_source)
+                            mt_out.append(dev_mt)
+                            pred_out.append(dev_pred)
+                            output_out.append(dev_output)
+                            acc_out.append(acc)
+
                             total_correct += num_correct
                             total_instances += output_len
 
                         dev_batch += 1
+
+                    dev_reports = []
+                    for s, m, p, o, a in zip(source_out, mt_out, pred_out, output_out, acc_out):
+                        dev_report = {
+                            'source': u' '.join(s),
+                            'mt': u' '.join(m),
+                            'pred': u' '.join(p),
+                            'output': u' '.join(o),
+                            'acc': a
+                        }
+                        dev_reports.append(dev_report)
+
+                    evaluation_report = qe_output_evaluation(mt_out, pred_out, output_out)
+                    logger.info(u'Evaluation report at step: {} -- {}'.format(step, evaluation_report))
 
                     dev_report_file = os.path.join(logdir, 'dev_{}.out'.format(step))
                     with codecs.open(dev_report_file, 'w', encoding='utf8') as dev_out:
