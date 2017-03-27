@@ -17,8 +17,11 @@ Create vocabularies
 
 
 ##### Learning BPE segmentation
-We use a large dataset to learn the BPE segmentation jointly for the 
-language pair.
+We use a large dataset to learn the BPE segmentation jointly for the  language pair.
+
+IMPORTANT: the WMT QE task generates tags based upon case-insensitive TER alignment, therefore all data
+should be lowercased if your goal is to get the best performance on the WMT tasks.
+
 
 ```
 export SUBWORD_NMT=/home/chris/projects/subword_nmt
@@ -95,6 +98,45 @@ export EXPERIMENT_DIR=/home/chris/projects/qe_sequence_labeling/experiments/test
 
 python scripts/train_qe_model.py -t $QE_DATA_DIR/train -v $QE_DATA_DIR/dev -l $EXPERIMENT_DIR -r $RESOURCES
 ```
+
+#### YAML Experiment Configuration
+
+
+### Adding More Data
+
+#### WMT 16 AmuNMT APE Data
+
+Get labels for the APE data using TER
+```
+export DROPBOX=/home/chris/Desktop/Dropbox
+export TERCOM=$DROPBOX/data/qe/sw/tercom-0.7.25
+
+export DATADIR=$DROPBOX/data/qe/wmt_2016/train
+export HYPS=$DATADIR/train.mt
+export REFS=$DATADIR/train.pe
+export SRC_LANG=en
+export TRG_LANG=de
+export OUTPUT=~/test/test_ter_tags
+
+python scripts/qe_labels_from_ter_alignment.py --hyps $HYPS --refs $REFS --output $OUTPUT --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM
+```
+
+
+Segment the data
+
+
+Add the data to task-internal
+
+
+
+
+
+Ideas:
+attention over concatenated src+trg with alignment
+factored inputs for source and target
+co-dependent attention between source and target
+convolutional encoding for source and target (not RNN)
+weight bad instances higher (this just means changing the output mask for 'BAD' labels
 
 
 
