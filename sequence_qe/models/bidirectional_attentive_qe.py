@@ -157,12 +157,13 @@ class BidirectionalAttentiveQEModel(object):
             'dropout_prob': 0.8,
             'regularization_alpha': 0.0001,
             'bad_class_weight': 3,
+            'shuffle_factor': 100000,
 
             # model
             'lstm_stack_size': 2,
             'embedding_size': 100,
             'encoder_hidden_size': 150,
-            'decoder_hidden_size': 300
+            'decoder_hidden_size': 300,
 
             'ner_embedding_size': 5,
             'num_ner_tags': 6,
@@ -515,7 +516,7 @@ class BidirectionalAttentiveQEModel(object):
 
     def weight_bad_tokens_in_mask(self, output_seqs, mask, weight_factor):
         new_mask = np.zeros_like(mask)
-        for i, (seq, mask_row) in enumerate(output_seqs, mask):
+        for i, (seq, mask_row) in enumerate(zip(output_seqs, mask)):
             # get indexes of BAD tokens
             bad_token_idxs = [idx for idx, tok_idx in enumerate(seq)
                               if self.output_vocab_idict[tok_idx].endswith('BAD')]
@@ -578,13 +579,13 @@ class BidirectionalAttentiveQEModel(object):
         # WORKING: optionally weight BAD tokens higher
         bad_class_weight = self.config.get('bad_class_weight', None)
         if bad_class_weight is not None:
-            output_mask = self.weight_bad_tokens_with_mask(outputs, output_mask, bad_class_weight)
+            output_mask = self.weight_bad_tokens_in_mask(outputs, output_mask, bad_class_weight)
 
         return source_batch, source_mask, target_batch, target_mask, output_batch, output_mask
 
 
     # WORKING HERE: create input iterators for train and dev over (source, target, output) files
-    def train(self, train_iter_func, dev_iter_func, restore_from=None, persist_dir=None, logdir=None, auto_log_suffix=True,
+    def train(self, train_iter_func, dev_iter_func, restore_from=None, auto_log_suffix=True,
               start_iteration=0, shuffle=True):
         """
         Training with dev checks for QE sequence models
@@ -595,15 +596,15 @@ class BidirectionalAttentiveQEModel(object):
 
         """
 
-        if logdir is None:
-            logdir = os.path.join(self.storage, 'logs')
-        if persist_dir is None:
-            persist_dir = os.path.dirname(__file__)
+        logdir = os.path.join(self.storage, 'logs')
+        persist_dir = os.path.join(self.storage, 'model')
+        mkdir_p(persist_dir)
 
         training_iter = train_iter_func()
         # wrap the data iter to add functionality
         if shuffle:
-            training_iter = shuffle_instances_iterator(training_iter, shuffle_factor=5000)
+            shuffle_factor = self.config.get('shuffle_factor', 5000)
+            training_iter = shuffle_instances_iterator(training_iter, shuffle_factor=shuffle_factor)
 
         training_iter = itertools.cycle(training_iter)
 
@@ -722,10 +723,10 @@ class BidirectionalAttentiveQEModel(object):
                         preds = session.run(self.predictions, feed_dict=feed_dict)
                         preds = np.argmax(preds, axis=2)
 
-                        for s, t, o, p, m in zip(source, target, output, preds, output_mask):
+                        for s, t, p, o, m in zip(source, target, preds, output, output_mask):
                             dev_source = [self.src_vocab_idict[w] for w in s]
 
-                            output_len = int(sum(m))
+                            output_len = np.count_nonzero(m)
                             mt_actual = t[:output_len]
                             pred_actual = p[:output_len]
                             output_actual = o[:output_len]
@@ -768,11 +769,11 @@ class BidirectionalAttentiveQEModel(object):
 
                     dev_perf = evaluation_report['f1_product']
                     dev_perfs[step] = dev_perf
-                    # if model is the best so far, save it
-                    if dev_perf == max(v for k, v in self.dev_perfs.items()):
+                    
+                    if dev_perf == max(v for k, v in dev_perfs.items()) and step > 0:
                         save_path = self.saver.save(session, os.path.join(persist_dir, 'best_model.ckpt'))
                         logger.info("Step: {} -- {} is the best score so far, model saved in file: {}".format(step, dev_perf, save_path))
-                    if step % 10000 == 0:
+                    if step > 0 and step % 10000 == 0:
                         save_path = self.saver.save(session, os.path.join(persist_dir, 'model_{}.ckpt'.format(step)))
                         logger.info("Step: {} -- checkpoint model saved in file: {}".format(step, save_path))
 

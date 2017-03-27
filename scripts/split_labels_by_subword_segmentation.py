@@ -36,8 +36,10 @@ def map_tags(segmented_target, original_tags, segmentation_suffix=u'@@'):
     """
 
     # assume whitespace tokenization
-    segmented_target = segmented_target.split()
-    original_tags = original_tags.split()
+    if type(segmented_target) is not list:
+        segmented_target = segmented_target.split()
+    if type(original_tags) is not list:
+        original_tags = original_tags.split()
 
     mapped_tags = []
     tag_idx = 0
