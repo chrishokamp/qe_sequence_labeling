@@ -674,11 +674,13 @@ class BidirectionalAttentiveQEModel(object):
                 if step % val_freq == 0:
                     logger.info('Running validation...')
                     logger.info('Training loss on last batch: {}'.format(l))
-                    total_correct = 0
-                    total_instances = 0
 
                     dev_iter = dev_iter_func()
                     dev_batch_len = self.config['batch_size']
+
+                    total_correct = 0
+                    total_instances = 0
+                    dev_reports = []
                     dev_batch = 0
                     while dev_batch_len > 0:
                         data_cols = self.get_batch(dev_iter,
@@ -708,7 +710,6 @@ class BidirectionalAttentiveQEModel(object):
                         # TODO: QE validation in separate function(s)
                         # TODO: cut preds to true lengths
                         # TODO: when a pred word doesn't match, it's also BAD(?)
-                        dev_reports = []
                         for s, t, o, p, m in zip(source, target, output, preds, output_mask):
                             dev_source = u' '.join([self.src_vocab_idict[w] for w in s])
                             dev_mt = u' '.join([self.trg_vocab_idict[w] for w in t])
@@ -731,14 +732,12 @@ class BidirectionalAttentiveQEModel(object):
                             total_correct += num_correct
                             total_instances += output_len
 
-                        if dev_batch == 0:
-                            dev_report_file = os.path.join(logdir, 'dev_{}.out'.format(step))
-                            with codecs.open(dev_report_file, 'w', encoding='utf8') as dev_out:
-                                dev_out.write(json.dumps(dev_reports, indent=2))
-                            logger.info('Wrote validation report to: {}'.format(dev_report_file))
-
-
                         dev_batch += 1
+
+                    dev_report_file = os.path.join(logdir, 'dev_{}.out'.format(step))
+                    with codecs.open(dev_report_file, 'w', encoding='utf8') as dev_out:
+                        dev_out.write(json.dumps(dev_reports, indent=2))
+                    logger.info('Wrote validation report to: {}'.format(dev_report_file))
 
                     final_dev_acc = total_correct / float(total_instances)
                     logger.info('Dev pass at step: {}, accuracy: {}'.format(step, final_dev_acc))
