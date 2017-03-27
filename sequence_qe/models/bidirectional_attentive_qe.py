@@ -599,6 +599,7 @@ class BidirectionalAttentiveQEModel(object):
         persist_dir = os.path.join(self.storage, 'model')
         mkdir_p(persist_dir)
         evaluation_logdir = os.path.join(self.storage, 'evaluation_reports')
+        mkdir_p(evaluation_logdir)
 
         training_iter = train_iter_func()
         # wrap the data iter to add functionality
