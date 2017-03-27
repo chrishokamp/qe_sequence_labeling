@@ -584,7 +584,6 @@ class BidirectionalAttentiveQEModel(object):
         return source_batch, source_mask, target_batch, target_mask, output_batch, output_mask
 
 
-    # WORKING HERE: create input iterators for train and dev over (source, target, output) files
     def train(self, train_iter_func, dev_iter_func, restore_from=None, auto_log_suffix=True,
               start_iteration=0, shuffle=True):
         """
@@ -599,6 +598,7 @@ class BidirectionalAttentiveQEModel(object):
         logdir = os.path.join(self.storage, 'logs')
         persist_dir = os.path.join(self.storage, 'model')
         mkdir_p(persist_dir)
+        evaluation_logdir = os.path.join(self.storage, 'evaluation_reports')
 
         training_iter = train_iter_func()
         # wrap the data iter to add functionality
@@ -767,9 +767,15 @@ class BidirectionalAttentiveQEModel(object):
                         dev_out.write(json.dumps(dev_reports, indent=2))
                     logger.info('Wrote validation report to: {}'.format(dev_report_file))
 
+                    evaluation_logfile = 'f1-product-{}.step-{}.json'.format(evaluation_report['f1_product'], step)
+                    evaluation_logfile = os.path.join(evaluation_logdir, evaluation_logfile)
+                    with codecs.open(evaluation_logfile, 'w', encoding='utf8') as eval_out:
+                        eval_out.write(json.dumps(evaluation_report, indent=2))
+                    logger.info('Wrote evaluation log to: {}'.format(evaluation_logfile))
+
                     dev_perf = evaluation_report['f1_product']
                     dev_perfs[step] = dev_perf
-                    
+
                     if dev_perf == max(v for k, v in dev_perfs.items()) and step > 0:
                         save_path = self.saver.save(session, os.path.join(persist_dir, 'best_model.ckpt'))
                         logger.info("Step: {} -- {} is the best score so far, model saved in file: {}".format(step, dev_perf, save_path))
