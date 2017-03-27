@@ -602,12 +602,12 @@ class BidirectionalAttentiveQEModel(object):
         mkdir_p(evaluation_logdir)
 
         training_iter = train_iter_func()
+        training_iter = itertools.cycle(training_iter)
+
         # wrap the data iter to add functionality
         if shuffle:
             shuffle_factor = self.config.get('shuffle_factor', 5000)
             training_iter = shuffle_instances_iterator(training_iter, shuffle_factor=shuffle_factor)
-
-        training_iter = itertools.cycle(training_iter)
 
         # load pretrained source word embeddings
         source_embeddings = None
