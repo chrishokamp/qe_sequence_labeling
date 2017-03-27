@@ -412,10 +412,16 @@ class BidirectionalAttentiveQEModel(object):
 
                 # output_fn = create_output_fn()
 
-                output_transformation = tf.Variable(tf.random_normal([self.config['decoder_hidden_size'] + self.config['encoder_hidden_size']*2,
-                                                                      self.output_vocab_size]),
-                                                    name='output_transformation')
-                output_biases = tf.Variable(tf.zeros([self.output_vocab_size]), name='output_biases')
+                intermediate_dim = 512
+                output_transformation_1 = tf.Variable(tf.random_normal([self.config['decoder_hidden_size'] + self.config['encoder_hidden_size']*2,
+                                                                        intermediate_dim]),
+                                                    name='output_transformation_1')
+                output_biases_1 = tf.Variable(tf.zeros([self.output_vocab_size]), name='output_biases_1')
+
+                output_transformation_2 = tf.Variable(tf.random_normal([intermediate_dim,
+                                                                        self.output_vocab_size]),
+                                                      name='output_transformation_2')
+                output_biases_2 = tf.Variable(tf.zeros([self.output_vocab_size]), name='output_biases_2')
 
                 # Train decoder
                 decoder_cell = core_rnn_cell_impl.GRUCell(decoder_hidden_size)
@@ -432,8 +438,6 @@ class BidirectionalAttentiveQEModel(object):
                 # TODO: for attentive QE, we don't need to separate train and inference decoders
                 # TODO: we can directly use train decoder output at both training and prediction time
 
-                # decoder_outputs_train = output_fn(decoder_outputs_train)
-
                 # concat with target lm representation
                 decoder_outputs_train = tf.concat([decoder_outputs_train, target_representation], 2)
                 decoder_outputs_train = tf.nn.elu(decoder_outputs_train)
@@ -443,8 +447,16 @@ class BidirectionalAttentiveQEModel(object):
 
                 decoder_outputs_train = tf.matmul(tf.reshape(decoder_outputs_train,
                                                              [output_shape[0] * output_shape[1], -1]),
-                                                  output_transformation)
-                decoder_outputs_train += output_biases
+                                                  output_transformation_1)
+                decoder_outputs_train += output_biases_1
+                decoder_outputs_train = tf.nn.elu(decoder_outputs_train)
+                decoder_outputs_train = tf.nn.dropout(decoder_outputs_train, keep_prob=dropout_prob)
+
+
+                # one more linear layer
+                decoder_outputs_train = tf.matmul(decoder_outputs_train, output_transformation_2)
+                decoder_outputs_train += output_biases_2
+
                 decoder_outputs_train = tf.reshape(decoder_outputs_train, [output_shape[0], output_shape[1], -1])
 
                 # DEBUGGING: dump these
