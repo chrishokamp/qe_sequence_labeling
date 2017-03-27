@@ -111,21 +111,62 @@ Get labels for the APE data using TER
 export DROPBOX=/home/chris/Desktop/Dropbox
 export TERCOM=$DROPBOX/data/qe/sw/tercom-0.7.25
 
-export DATADIR=$DROPBOX/data/qe/wmt_2016/train
-export HYPS=$DATADIR/train.mt
-export REFS=$DATADIR/train.pe
+export DATADIR=$DROPBOX/data/qe/amunmt_artificial_ape_2016/data/500K
+export HYPS=$DATADIR/500K.mt
+export REFS=$DATADIR/500K.pe
 export SRC_LANG=en
 export TRG_LANG=de
-export OUTPUT=~/test/test_ter_tags
+export OUTPUT=$DATADIR
 
 python scripts/qe_labels_from_ter_alignment.py --hyps $HYPS --refs $REFS --output $OUTPUT --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM
 ```
 
+Segment the external data
+```
+export SUBWORD_NMT=/home/chris/projects/subword_nmt
+export BPE_CODES=/media/1tb_drive/parallel_data/en-de/chris_en-de_big_corpus/train/bpe_20000_corpus/all_text_both_EN_and_DE.20000.bpe.codes
+export QE_DATA=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
 
-Segment the data
+# map train
+python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/500K.src > $QE_DATA/500K.src.bpe
+python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/500K.mt > $QE_DATA/500K.mt.bpe
+python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/500K.pe > $QE_DATA/500K.pe.bpe
+```
+
+Resegment and map tags according to BPE segmentation
+```
+export QE_DATA=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
+python scripts/split_labels_by_subword_segmentation.py -t $QE_DATA/500K.mt.bpe < $QE_DATA/en-de.tercom.out.tags > $QE_DATA/500K.tags.mapped 
+```
+
+Add the external data to the task-internal training data
+```
+export QE_DATA=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data
+export WMT16_TRAIN=/media/1tb_drive/Dropbox/data/qe/wmt_2016/train
+export EXT_TRAIN=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
+
+export DATADIR=$QE_DATA/concat_500k_with_wmt16
+
+cat $EXT_TRAIN/500K.src.bpe $WMT16_TRAIN/train.src.bpe > $DATADIR/train.src.bpe
+cat $EXT_TRAIN/500K.mt.bpe $WMT16_TRAIN/train.mt.bpe > $DATADIR/train.mt.bpe
+cat $EXT_TRAIN/500K.pe.bpe $WMT16_TRAIN/train.pe.bpe > $DATADIR/train.pe.bpe
+cat $EXT_TRAIN/500K.tags.mapped $WMT16_TRAIN/train.tags.mapped > $DATADIR/train.tags.mapped
+```
+
+Train model with external and internal data
+```
+export DROPBOX_DIR=/media/1tb_drive/Dropbox
+export TRAIN_DATA_DIR=$DROPBOX_DIR/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
+export DEV_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev
+export RESOURCES=$DROPBOX_DIR/data/qe/model_data/en-de
+export EXPERIMENT_DIR=/home/chris/projects/qe_sequence_labeling/experiments/test_bidirectional_qe_external_data
+
+python scripts/train_qe_model.py -t $TRAIN_DATA_DIR -v $DEV_DATA_DIR -l $EXPERIMENT_DIR -r $RESOURCES
+```
 
 
-Add the data to task-internal
+#### Pretrain Word Vectors for source and target text
+
 
 
 
