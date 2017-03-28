@@ -9,6 +9,7 @@ from sklearn.metrics import f1_score
 
 def reduce_to_binary_labels(label_seqs):
     reduced_labels = [[re.sub(r'.*(OK|BAD)$', r'\1', label) for label in seq] for seq in label_seqs]
+    reduced_labels = [[re.sub(r'<UNK>', r'BAD', label) for label in seq] for seq in reduced_labels]
     return reduced_labels
 
 

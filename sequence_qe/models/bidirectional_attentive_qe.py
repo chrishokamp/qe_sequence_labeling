@@ -36,7 +36,7 @@ from tensorflow.python.platform import test
 from tensorflow.contrib.tensorboard.plugins import projector
 
 from sequence_qe.dataset import mkdir_p
-from sequence_qe.evaluation import qe_output_evaluation
+from sequence_qe.evaluation import qe_output_evaluation, reduce_to_binary_labels
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -174,6 +174,7 @@ class BidirectionalAttentiveQEModel(object):
             'unknown_token': u'<UNK>',
             'bos_token': u'<S>',
             'eos_token': u'</S>',
+            'expanded_output_tagset': True
         }
 
         if config is None:
@@ -206,7 +207,13 @@ class BidirectionalAttentiveQEModel(object):
 
         self.src_vocab_dict, self.src_vocab_idict, self.src_vocab_size = load_vocab(src_index)
         self.trg_vocab_dict, self.trg_vocab_idict, self.trg_vocab_size = load_vocab(trg_index)
-        self.output_vocab_dict, self.output_vocab_idict, self.output_vocab_size = load_vocab(output_index)
+
+        if self.config['expanded_output_tagset']:
+            self.output_vocab_dict, self.output_vocab_idict, self.output_vocab_size = load_vocab(output_index)
+        else:
+            self.output_vocab_dict = {u'BAD': 0, u'OK': 1}
+            self.output_vocab_idict = {0: u'BAD', 1: u'OK'}
+            self.output_vocab_size = 2
 
         logger.info('Loading word embeddings')
         # TODO: add pretrained embeddings for target language
@@ -568,6 +575,10 @@ class BidirectionalAttentiveQEModel(object):
 
             source_idxs = idx_or_unk(source, self.src_vocab_dict, u'<UNK>')
             target_idxs = idx_or_unk(target, self.trg_vocab_dict, u'<UNK>')
+
+            if not self.config['expanded_output_tagset']:
+                output = reduce_to_binary_labels([output])[0]
+
             output_idxs = idx_or_unk(output, self.output_vocab_dict, u'<UNK>')
             assert len(target_idxs) == len(output_idxs), 'Output and target should always be the same length'
 

@@ -171,13 +171,11 @@ python scripts/train_qe_model.py -t $TRAIN_DATA_DIR -v $DEV_DATA_DIR -l $EXPERIM
 
 
 
-
 Ideas:
 attention over concatenated src+trg with alignment
 factored inputs for source and target
 co-dependent attention between source and target
-convolutional encoding for source and target (not RNN)
-weight bad instances higher (this just means changing the output mask for 'BAD' labels
+convolutional encoder for source and target (i.e. don't use RNN)
 
 
 

@@ -49,6 +49,7 @@ if __name__ == '__main__':
     parser.add_argument("-t", "--train", help="Directory containing training data")
     parser.add_argument("-v", "--validation", help="Directory containing validation data")
     parser.add_argument("-l", "--logdir", help="Directory for output data")
+    parser.add_argument("--no_expanded_tagset", action='store_true', default=False, help="whether to use the expanded output tagset")
     parser.add_argument("-r", "--resources", help="Location of resources -- vocabulary indexes")
     args = parser.parse_args()
 
@@ -57,9 +58,11 @@ if __name__ == '__main__':
     train_iter_func = qe_data_iterator_func(*train_files)
     dev_iter_func = qe_data_iterator_func(*dev_files)
 
+    expanded_tagset = not args.no_expanded_tagset
     # TODO: supply external config for QE model
     config = {
-        'resources': args.resources
+        'resources': args.resources,
+        'expanded_output_tagset': expanded_tagset
     }
 
     #model = UnidirectionalAttentiveQEModel(storage=args.logdir, config=config)
