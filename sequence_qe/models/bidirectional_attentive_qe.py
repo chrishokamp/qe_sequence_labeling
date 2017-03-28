@@ -211,9 +211,9 @@ class BidirectionalAttentiveQEModel(object):
         if self.config['expanded_output_tagset']:
             self.output_vocab_dict, self.output_vocab_idict, self.output_vocab_size = load_vocab(output_index)
         else:
-            self.output_vocab_dict = {u'BAD': 0, u'OK': 1}
-            self.output_vocab_idict = {0: u'BAD', 1: u'OK'}
-            self.output_vocab_size = 2
+            self.output_vocab_dict = {u'BAD': 0, u'OK': 1, u'</S>': 2}
+            self.output_vocab_idict = {0: u'BAD', 1: u'OK', 2: u'</S>'}
+            self.output_vocab_size = 3
 
         logger.info('Loading word embeddings')
         # TODO: add pretrained embeddings for target language

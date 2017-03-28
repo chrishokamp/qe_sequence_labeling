@@ -164,6 +164,11 @@ export EXPERIMENT_DIR=/home/chris/projects/qe_sequence_labeling/experiments/test
 python scripts/train_qe_model.py -t $TRAIN_DATA_DIR -v $DEV_DATA_DIR -l $EXPERIMENT_DIR -r $RESOURCES
 ```
 
+Dont use the expanded tagset
+```
+python scripts/train_qe_model.py -t $TRAIN_DATA_DIR -v $DEV_DATA_DIR -l $EXPERIMENT_DIR -r $RESOURCES --no_expanded_tagset
+```
+
 
 #### Pretrain Word Vectors for source and target text
 
