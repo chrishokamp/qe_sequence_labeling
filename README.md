@@ -99,7 +99,6 @@ export EXPERIMENT_DIR=/home/chris/projects/qe_sequence_labeling/experiments/test
 python scripts/train_qe_model.py -t $QE_DATA_DIR/train -v $QE_DATA_DIR/dev -l $EXPERIMENT_DIR -r $RESOURCES
 ```
 
-#### YAML Experiment Configuration
 
 
 ### Adding More Data
@@ -159,7 +158,7 @@ export DROPBOX_DIR=/media/1tb_drive/Dropbox
 export TRAIN_DATA_DIR=$DROPBOX_DIR/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
 export DEV_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev
 export RESOURCES=$DROPBOX_DIR/data/qe/model_data/en-de
-export EXPERIMENT_DIR=/home/chris/projects/qe_sequence_labeling/experiments/test_bidirectional_qe_external_data
+export EXPERIMENT_DIR=/media/1tb_drive/qe_seq2seq_experiments/test_bidirectional_qe_external_data
 
 python scripts/train_qe_model.py -t $TRAIN_DATA_DIR -v $DEV_DATA_DIR -l $EXPERIMENT_DIR -r $RESOURCES
 ```
@@ -171,6 +170,109 @@ python scripts/train_qe_model.py -t $TRAIN_DATA_DIR -v $DEV_DATA_DIR -l $EXPERIM
 
 
 #### Pretrain Word Vectors for source and target text
+
+
+#### YAML Experiment Configuration
+
+
+## Neural Machine Translation for APE and Word-Level QE
+
+IDEA: use doubly attentive NMT for APE, use TER between NMT output and MT for Word-Level QE
+IDEA: use auxilliary loss to do minimal Post-Editing in the NMT APE system
+
+Our systems use the tensorflow seq2seq framework
+
+### Training large EN-DE and DE-EN models
+
+install the [seq2seq library](https://github.com/google/seq2seq)
+uncomment [these lines](https://github.com/google/seq2seq/blob/master/seq2seq/metrics/bleu.py#L55-L58) 
+and make sure `seq2seq/bin/tools/multi-bleu.perl` is executable if you get errors when running tests.
+
+setup paths to data
+
+### EN-DE
+```
+# Set this to where you extracted the data
+export DATA_PATH=/extra/chokamp/nmt_data/en-de/google_seq2seq_dataset
+
+# EN-DE
+export MODEL_DIR=/extra/chokamp/nmt_systems/en-de/
+mkdir -p $MODEL_DIR
+
+export VOCAB_SOURCE=${DATA_PATH}/vocab.bpe.32000
+export VOCAB_TARGET=${DATA_PATH}/vocab.bpe.32000
+export TRAIN_SOURCES=${DATA_PATH}/train.tok.clean.bpe.32000.en
+export TRAIN_TARGETS=${DATA_PATH}/train.tok.clean.bpe.32000.de
+export DEV_SOURCES=${DATA_PATH}/newstest2013.tok.bpe.32000.en
+export DEV_TARGETS=${DATA_PATH}/newstest2013.tok.bpe.32000.de
+export DEV_TARGETS_REF=${DATA_PATH}/newstest2013.tok.de
+
+export TRAIN_STEPS=1000000
+```
+
+# DE-EN
+```
+# Set this to where you extracted the data
+export DATA_PATH=/extra/chokamp/nmt_data/en-de/google_seq2seq_dataset
+
+# EN-DE
+export MODEL_DIR=/extra/chokamp/nmt_systems/de-en/
+mkdir -p $MODEL_DIR
+
+export VOCAB_SOURCE=${DATA_PATH}/vocab.bpe.32000
+export VOCAB_TARGET=${DATA_PATH}/vocab.bpe.32000
+export TRAIN_SOURCES=${DATA_PATH}/train.tok.clean.bpe.32000.de
+export TRAIN_TARGETS=${DATA_PATH}/train.tok.clean.bpe.32000.en
+export DEV_SOURCES=${DATA_PATH}/newstest2013.tok.bpe.32000.de
+export DEV_TARGETS=${DATA_PATH}/newstest2013.tok.bpe.32000.en
+export DEV_TARGETS_REF=${DATA_PATH}/newstest2013.tok.en
+
+export TRAIN_STEPS=1000000
+```
+
+
+run training
+```
+cd ~/projects/qe_sequence_labeling
+
+python -m bin.train \
+  --config_paths="
+      ./experiment_configs/models/nmt_medium.yml,
+      ./experiment_configs/training/train_seq2seq.yml,
+      ./experiment_configs/metrics/text_metrics_bpe.yml" \
+  --model_params "
+      vocab_source: $VOCAB_SOURCE
+      vocab_target: $VOCAB_TARGET" \
+  --input_pipeline_train "
+    class: ParallelTextInputPipeline
+    params:
+      source_files:
+        - $TRAIN_SOURCES
+      target_files:
+        - $TRAIN_TARGETS" \
+  --input_pipeline_dev "
+    class: ParallelTextInputPipeline
+    params:
+       source_files:
+        - $DEV_SOURCES
+       target_files:
+        - $DEV_TARGETS" \
+  --batch_size 32 \
+  --train_steps $TRAIN_STEPS \
+  --output_dir $MODEL_DIR
+```
+
+
+
+
+
+### Training doubly attentive APE models
+
+Init encoders from MT
+
+
+
+
 
 
 
