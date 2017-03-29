@@ -788,7 +788,7 @@ class BidirectionalAttentiveQEModel(object):
                         }
                         dev_reports.append(dev_report)
 
-                    evaluation_report = qe_output_evaluation(mt_out, pred_out, output_out)
+                    evaluation_report = qe_output_evaluation(mt_out, pred_out, output_out, expanded_tagset=self.config['expanded_output_tagset'])
                     logger.info(u'Evaluation report at step: {} -- {}'.format(step, evaluation_report))
 
                     dev_report_file = os.path.join(logdir, 'dev_{}.out'.format(step))

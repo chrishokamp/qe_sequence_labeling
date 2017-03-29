@@ -50,6 +50,7 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--validation", help="Directory containing validation data")
     parser.add_argument("-l", "--logdir", help="Directory for output data")
     parser.add_argument("--no_expanded_tagset", action='store_true', default=False, help="whether to use the expanded output tagset")
+    parser.add_argument("--restore", default=None, help="(optional) path to a checkpoint to restore model params")
     parser.add_argument("-r", "--resources", help="Location of resources -- vocabulary indexes")
     args = parser.parse_args()
 
@@ -65,9 +66,11 @@ if __name__ == '__main__':
         'expanded_output_tagset': expanded_tagset
     }
 
+    restore_from = args.restore
+
     #model = UnidirectionalAttentiveQEModel(storage=args.logdir, config=config)
     model = BidirectionalAttentiveQEModel(storage=args.logdir, config=config)
 
     # WORKING HERE: init QE model, train QE model
-    model.train(train_iter_func=train_iter_func, dev_iter_func=dev_iter_func)
+    model.train(train_iter_func=train_iter_func, dev_iter_func=dev_iter_func, restore_from=restore_from)
 

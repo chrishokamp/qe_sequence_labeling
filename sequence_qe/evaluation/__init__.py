@@ -98,7 +98,7 @@ def f1_scores(pred, true):
     Returns:
       {'OK': <f1_score of OK class>, 'BAD': <f1_score of BAD class>}
     """
-    tag_map = {u'OK': 0, u'BAD': 1, u'<UNK>': 1}
+    tag_map = {u'OK': 0, u'BAD': 1, u'<UNK>': 1, u'</S>': 1}
     # assume 2d
     flat_preds = [tag_map[w] for s in pred for w in s]
     flat_true = [tag_map[w] for s in true for w in s]
@@ -150,18 +150,17 @@ def accuracy(preds, true):
     return float(correct) / float(total)
 
 
-def qe_output_evaluation(mt, preds, true):
+def qe_output_evaluation(mt, preds, true, expanded_tagset=True):
     """
     Return a score report for the output of a QE Model
 
-    :param mt:
-    :param pred:
-    :param true:
-    :return:
     """
 
-    # map predictions where the token portion doesn't match the mt to 'BAD'
-    mapped_preds = non_matching_words_are_bad(mt, preds)
+    if expanded_tagset:
+        # map predictions where the token portion doesn't match the mt to 'BAD'
+        mapped_preds = non_matching_words_are_bad(mt, preds)
+    else:
+        mapped_preds = preds
 
     # reduce expanded tagset to {OK, BAD}
     reduced_preds = reduce_to_binary_labels(mapped_preds)
