@@ -24,7 +24,7 @@ TRG_DEV = os.path.join(QE_DATA_DIR, 'dev.pe.prepped')
 if __name__ == '__main__':
     validerr = train(saveto='model/model.npz',
                     reload_=True,
-                    dim_word=256,
+                    dim_word=512,
                     dim=1024,
                     n_words=VOCAB_SIZE,
                     n_words_src=VOCAB_SIZE,
