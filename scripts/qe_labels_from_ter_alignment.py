@@ -74,8 +74,6 @@ if __name__ == '__main__':
     parser.add_argument("--src_lang", help="The source language code")
     parser.add_argument("--trg_lang", help="The target language code")
     parser.add_argument("--tercom", help="The path to the directory containing tercom.7.25.jar")
-    # parser.add_argument("-o", "--output", type=argparse.FileType('w'), default=sys.stdout,
-    #                     help="Where we should write the new mapped tags")
 
     args = parser.parse_args()
     extract_ter_alignment(args.hyps, args.refs, args.output, args.src_lang, args.trg_lang, args.tercom)
