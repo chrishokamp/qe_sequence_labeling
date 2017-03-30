@@ -38,7 +38,7 @@ if __name__ == '__main__':
                     datasets=[SRC_TRAIN, TRG_TRAIN],
                     valid_datasets=[SRC_DEV, TRG_DEV],
                     dictionaries=[TRG_VOCAB, SRC_VOCAB, TRG_VOCAB],
-                    tie_encoder_decoder_embeddings=True,
+                    tie_encoder_decoder_embeddings=False,
                     factors=2,
                     dim_per_factor=[256,256],
                     validFreq=500,
