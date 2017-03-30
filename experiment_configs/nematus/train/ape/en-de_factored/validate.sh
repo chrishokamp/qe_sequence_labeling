@@ -35,6 +35,21 @@ BETTER=`echo "$BLEU > $BEST" | bc`
 echo "BLEU = $BLEU"
 
 ## get f1 product using TER alignment
+DROPBOX=/media/1tb_drive/Dropbox
+TERCOM=$DROPBOX/data/qe/sw/tercom-0.7.25
+hyp=$dev.output.postprocessed.dev
+SRC_LANG=en
+TRG_LANG=de
+TMP_DIR=dev_ter_tmp
+mkdir -p $TMP_DIR
+
+qe_sequence_labeling=~/projects/qe_sequence_labeling/
+
+python $qe_sequence_labeling/scripts/qe_labels_from_ter_alignment.py --hyps $hyp --refs $ref --output $TMP_DIR --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM
+
+# now compute F1 product from two files
+# WORKING: script to compute F1 product from two files
+# $TMP_DIR/en-de.tercom.out.tags
 
 # save model with highest BLEU
 if [ "$BETTER" = "1" ]; then
