@@ -45,16 +45,10 @@ THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=cuda,on_unused_input=warn pytho
 ##### Train DE-EN system
 
 
-
-
-
-
 ### Using WMT 16 Pre-trained models
 
-
-
 ```
-# Download the files for the language pair that you want to use
+# Download the files for the language pair that you want to use (see README link for other commands)
 
 
 ```
@@ -70,8 +64,7 @@ Use `nematus/rescore.py` to get the alignment weights between SOURCE and MT
 
 EN-DE
 ```
-source activate theano
-export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/rescore.sh
+/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
 export MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de
 cp $RESCORE_SCRIPT $MODEL_DIR
 cd $MODEL_DIR
@@ -114,7 +107,79 @@ sed -i.bak -e '386771d' train.rescore.preprocessed.src
 sed -i.bak -e '386771d' train.rescore.preprocessed.mt
 ```
 
-#### Create corpus for factors, using the nematus pipe separator
+#### Extract Aligned Word Factors from very large artificial data
+
+Since we use the WMT pretrained models, we need to prep the dev corpus accordingly
+Use WMT 16 QE dev
+```
+export SUBWORD_NMT=~/projects/subword_nmt
+export BPE_CODES=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de/ende.bpe
+export QE_DATA=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
+
+# map dev through subword
+python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/dev.src > $QE_DATA/dev.src.bpe
+python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/dev.mt > $QE_DATA/dev.mt.bpe
+python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/dev.pe > $QE_DATA/dev.pe.bpe
+
+# now extract factors for dev
+source activate theano
+export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/de-en/rescore_wmt16_qe_dev.sh
+export MODEL_DIR=/extra/chokamp/nmt_systems/pretrained_wmt16_models/de-en
+cp $RESCORE_SCRIPT $MODEL_DIR
+cd $MODEL_DIR
+bash $RESCORE_SCRIPT
+
+```
+
+#### Map *.pe through pretrained model bpe (remember to remove extra lines that are broken from processing Nematus json)
+```
+export LANG=de
+export ORIG_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
+export OUTPUT_DIR=$ORIG_DATA_DIR/factored_ape_corpus
+export BPE_CODES=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de/ende.bpe
+export mosesdecoder=~/projects/mosesdecoder
+export subword_nmt=~/projects/subword_nmt
+
+$mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $LANG | \ 
+$mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $LANG -penn | \ 
+$subword_nmt/apply_bpe.py -c $BPE_CODES < $ORIG_DATA_DIR/train.pe > $OUTPUT_DIR/train.pe.prepped
+
+# Remove the broken line from PE references
+sed -i.bak -e '386771d' $OUTPUT_DIR/train.pe.prepped
+```
+
+
+Dev process (i.e. the job of `validate.sh`):
+(1) translate BPE segmented dev data
+(2) unsegment translated output
+(3) compute TER tags per-line for translated output against dev.pe
+(4) compute f1 product against gold tags, use as validation metric
+
+
+
+#### Create corpus for factors, using the Nematus pipe separator
+
+#### 500k+WMT QE Train
+```
+# Train
+export FACTOR_CORPUS=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16/factored_ape_corpus
+python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/train.rescore.preprocessed.mt --f2 $FACTOR_CORPUS/train.mt.aligned_words.target_order.factor --output $FACTOR_CORPUS/train.mt_aligned_with_source.factor
+
+# Dev
+python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/train.rescore.preprocessed.mt --f2 $FACTOR_CORPUS/train.mt.aligned_words.target_order.factor --output $FACTOR_CORPUS/train.mt_aligned_with_source.factor
+
+# Test
+python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/train.rescore.preprocessed.mt --f2 $FACTOR_CORPUS/train.mt.aligned_words.target_order.factor --output $FACTOR_CORPUS/train.mt_aligned_with_source.factor
+```
+
+
+
+
+# Dev
+# Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation
+
+
+
 
 
 
