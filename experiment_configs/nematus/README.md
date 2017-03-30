@@ -67,19 +67,28 @@ awk '{ print FNR - 1 " ||| " $0 }' train.mt > train.mt.numbered
 ```
 
 Use `nematus/rescore.py` to get the alignment weights between SOURCE and MT
+
+EN-DE
 ```
 source activate theano
 export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/rescore.sh
 export MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de
-export OUTPUT_FILE=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16/train.mt.rescored
 cp $RESCORE_SCRIPT $MODEL_DIR
 cd $MODEL_DIR
-bash rescore.sh > $OUTPUT_FILE
+bash rescore.sh
 
 
 ```
 
-
+DE-EN
+```
+source activate theano
+export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/de-en/rescore.sh
+export MODEL_DIR=/extra/chokamp/nmt_systems/pretrained_wmt16_models/de-en
+cp $RESCORE_SCRIPT $MODEL_DIR
+cd $MODEL_DIR
+bash rescore.sh
+```
 
 
 
