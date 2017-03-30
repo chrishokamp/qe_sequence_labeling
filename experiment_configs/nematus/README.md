@@ -130,11 +130,11 @@ cd $MODEL_DIR
 bash $RESCORE_SCRIPT
 
 # now extract alignments
-cd ~/qe_sequence_labeling
+cd ~/projects/qe_sequence_labeling
 python scripts/alignment_corpus_from_nematus_json_output.py --json $QE_DATA/dev.mt.rescored_withwords.json --output $QE_DATA/dev.mt.aligned_words.target_order.factor --order target
 ```
 
-#### Map *.pe through pretrained model bpe (remember to remove extra lines that are broken from processing Nematus json)
+#### Map train *.pe through pretrained model bpe (remember to remove extra lines that are broken from processing Nematus json)
 ```
 export LANG=de
 export ORIG_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
@@ -151,14 +151,16 @@ $subword_nmt/apply_bpe.py -c $BPE_CODES < $ORIG_DATA_DIR/train.pe > $OUTPUT_DIR/
 sed -i.bak -e '386771d' $OUTPUT_DIR/train.pe.prepped
 ```
 
+#### Map dev *.pe through pretrained model bpe
+```
+export LANG=de
+export DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
+export BPE_CODES=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de/ende.bpe
+export mosesdecoder=~/projects/mosesdecoder
+export subword_nmt=~/projects/subword_nmt
 
-Dev process (i.e. the job of `validate.sh`):
-(1) translate BPE segmented dev data
-(2) unsegment translated output
-(3) compute TER tags per-line for translated output against dev.pe
-(4) compute f1 product against gold tags, use as validation metric
-
-
+$mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $LANG | $mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $LANG -penn | $subword_nmt/apply_bpe.py -c $BPE_CODES < $DATA_DIR/dev.pe > $DATA_DIR/dev.pe.prepped
+```
 
 #### Create corpus for factors, using the Nematus pipe separator
 
@@ -174,16 +176,24 @@ python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/dev.mt.bpe.prepped --
 
 ```
 
+Train factored system on factored 500k+WMT QE APE corpus, validate with BLEU + F1_Product on factored QE data
+```
 
+
+```
+
+Train SRC-->PE and MT-->PE baselines on 500k+WMT QE APE corpus
+
+Dev process (i.e. the job of `validate.sh`):
+(1) translate BPE segmented dev data
+(2) unsegment translated output
+(3) compute TER tags per-line for translated output against dev.pe
+(4) compute f1 product against gold tags, use as validation metric
 
 
 # Dev
 # Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation
 
-# TODO
-
-# URGENT
-# By tokenizing dev again before rescoring, we break the subword encoding -- we _must_ realign to fix this
 
 
 

@@ -12,9 +12,9 @@ device=cuda
 #model prefix
 prefix=model/model.npz
 
-DATADIR=/media/1tb_drive/parallel_data/en-de/google_seq2seq_dataset
-dev=$DATADIR/newstest2016.tok.clean.bpe.32000.en
-ref=$DATADIR/newstest2016.tok.clean.bpe.32000.de
+DATADIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
+dev=$DATADIR/dev.mt_aligned_with_source.factor
+ref=$DATADIR/dev.pe.prepped
 
 # decode
 THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$device,on_unused_input=warn python $nematus/nematus/translate.py \
@@ -33,6 +33,8 @@ BLEU=`$mosesdecoder/scripts/generic/multi-bleu.perl $ref < $dev.output.postproce
 BETTER=`echo "$BLEU > $BEST" | bc`
 
 echo "BLEU = $BLEU"
+
+## get f1 product using TER alignment
 
 # save model with highest BLEU
 if [ "$BETTER" = "1" ]; then

@@ -29,7 +29,7 @@ PREPPED_SRC_FILE=$DATADIR/dev.src.bpe.prepped
 
 ORIG_TRG_FILE=$DATADIR/dev.mt
 PREPPED_TRG_FILE=$DATADIR/dev.mt.bpe.prepped
-TRG_FILE=$DATADIR/train.mt.numbered
+TRG_FILE=$DATADIR/dev.mt.numbered
 OUTPUT_FILE=$DATADIR/dev.mt.rescored
 
 $mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $TRG < $ORIG_TRG_FILE > ${ORIG_TRG_FILE}_1

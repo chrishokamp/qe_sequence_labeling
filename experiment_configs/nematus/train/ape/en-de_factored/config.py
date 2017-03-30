@@ -4,10 +4,9 @@ import sys
 
 from nematus.nmt import train
 
-VOCAB_SIZE = 32000
+VOCAB_SIZE = 90000
 SRC = "en"
 TGT = "de"
-
 
 VOCAB_DIR = "/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de"
 SRC_VOCAB = os.path.join(VOCAB_DIR, 'vocab.en.json')
@@ -19,10 +18,8 @@ TRG_TRAIN = os.path.join(TRAIN_DATA_DIR, 'train.pe.prepped')
 
 # WMT 16 EN-DE QE Data
 QE_DATA_DIR = "/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe"
-# WORKING: get factors for QE dev data
-SRC_DEV = os.path.join(QE_DATA_DIR, '')
-TRG_DEV = os.path.join(QE_DATA_DIR, 'dev.pe.bpe')
-
+SRC_DEV = os.path.join(QE_DATA_DIR, 'dev.mt_aligned_with_source.factor')
+TRG_DEV = os.path.join(QE_DATA_DIR, 'dev.pe.prepped')
 
 if __name__ == '__main__':
     validerr = train(saveto='model/model.npz',
@@ -40,11 +37,13 @@ if __name__ == '__main__':
                     valid_batch_size=64,
                     datasets=[SRC_TRAIN, TRG_TRAIN],
                     valid_datasets=[SRC_DEV, TRG_DEV],
-                    dictionaries=[SRC_VOCAB, TRG_VOCAB],
-                    validFreq=10000,
+                    dictionaries=[TRG_VOCAB, SRC_VOCAB, TRG_VOCAB],
+                    tie_encoder_decoder_embeddings=True,
+                    factors=2,
+                    validFreq=500,
                     dispFreq=100,
-                    saveFreq=30000,
-                    sampleFreq=10000,
+                    saveFreq=5000,
+                    sampleFreq=1000,
                     use_dropout=False,
                     dropout_embedding=0.2, # dropout for input embeddings (0: no dropout)
                     dropout_hidden=0.2, # dropout for hidden layers (0: no dropout)
