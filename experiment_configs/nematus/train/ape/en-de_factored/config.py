@@ -40,6 +40,7 @@ if __name__ == '__main__':
                     dictionaries=[TRG_VOCAB, SRC_VOCAB, TRG_VOCAB],
                     tie_encoder_decoder_embeddings=True,
                     factors=2,
+                    dim_per_factor=[256,256],
                     validFreq=500,
                     dispFreq=100,
                     saveFreq=5000,
