@@ -39,8 +39,6 @@ THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=cuda,on_unused_input=warn pytho
 
 ```
 
-# Now copy all of the configs to $MODEL_DIR, an
-
 
 ##### Train DE-EN system
 
@@ -178,9 +176,18 @@ python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/dev.mt.bpe.prepped --
 
 Train factored system on factored 500k+WMT QE APE corpus, validate with BLEU + F1_Product on factored QE data
 ```
+source activate theano
+export CONFIG_DIR=~/projects/qe_sequence_labeling/experiment_configs/nematus/train/ape/en-de_factored
+export MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de
+mkdir -p $MODEL_DIR
+mkdir -p $MODEL_DIR/model
+cp $CONFIG_DIR/* $MODEL_DIR
 
+cd $MODEL_DIR
+THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=cuda,on_unused_input=warn python config.py
 
 ```
+
 
 Train SRC-->PE and MT-->PE baselines on 500k+WMT QE APE corpus
 
