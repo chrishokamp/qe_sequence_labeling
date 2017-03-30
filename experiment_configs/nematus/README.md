@@ -90,6 +90,36 @@ cd $MODEL_DIR
 bash rescore.sh
 ```
 
+#### Extract aligned word factors
+
+```
+export DATA_DIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16/
+python scripts/alignment_corpus_from_nematus_json_output.py --json $DATA_DIR/train.mt.rescored_withwords.json --output $DATA_DIR/train.mt.aligned_words.target_order.factor --order target
+```
+
+IMPORTANT: The Nematus json output is messed up. There are hacks to get around this in
+`scripts/alignment_corpus_from_nematus_json_output.py`, but there can still be rows that
+we cannot parse. When there is an unparsable row, the script will output its index in the corpus
+This index _must_ be deleted from the corresponding `.src, .mt, .pe, .tags` files, otherwise the 
+datasets will no longer be sentence-aligned.
+```
+ERROR:__main__:DELETED ROW: 386771
+```
+
+```
+export FACTOR_CORPUS=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16/factored_ape_corpus
+cd $FACTOR_CORPUS
+
+sed -i.bak -e '386771d' train.rescore.preprocessed.src
+sed -i.bak -e '386771d' train.rescore.preprocessed.mt
+```
+
+#### Create corpus for factors, using the nematus pipe separator
+
+
+
+
+
 
 
 
