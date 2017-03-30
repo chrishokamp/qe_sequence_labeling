@@ -123,12 +123,15 @@ python $SUBWORD_NMT/apply_bpe.py -c $BPE_CODES < $QE_DATA/dev.pe > $QE_DATA/dev.
 
 # now extract factors for dev
 source activate theano
-export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/de-en/rescore_wmt16_qe_dev.sh
-export MODEL_DIR=/extra/chokamp/nmt_systems/pretrained_wmt16_models/de-en
+export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/en-de/rescore_wmt16_qe_dev.sh
+export MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de
 cp $RESCORE_SCRIPT $MODEL_DIR
 cd $MODEL_DIR
 bash $RESCORE_SCRIPT
 
+# now extract alignments
+cd ~/qe_sequence_labeling
+python scripts/alignment_corpus_from_nematus_json_output.py --json $QE_DATA/dev.mt.rescored_withwords.json --output $QE_DATA/dev.mt.aligned_words.target_order.factor --order target
 ```
 
 #### Map *.pe through pretrained model bpe (remember to remove extra lines that are broken from processing Nematus json)
@@ -166,10 +169,9 @@ export FACTOR_CORPUS=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016
 python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/train.rescore.preprocessed.mt --f2 $FACTOR_CORPUS/train.mt.aligned_words.target_order.factor --output $FACTOR_CORPUS/train.mt_aligned_with_source.factor
 
 # Dev
-python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/train.rescore.preprocessed.mt --f2 $FACTOR_CORPUS/train.mt.aligned_words.target_order.factor --output $FACTOR_CORPUS/train.mt_aligned_with_source.factor
+export FACTOR_CORPUS=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
+python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/dev.mt.bpe.prepped --f2 $FACTOR_CORPUS/dev.mt.aligned_words.target_order.factor --output $FACTOR_CORPUS/dev.mt_aligned_with_source.factor
 
-# Test
-python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/train.rescore.preprocessed.mt --f2 $FACTOR_CORPUS/train.mt.aligned_words.target_order.factor --output $FACTOR_CORPUS/train.mt_aligned_with_source.factor
 ```
 
 
@@ -177,6 +179,11 @@ python scripts/create_factor_corpus.py --f1 $FACTOR_CORPUS/train.rescore.preproc
 
 # Dev
 # Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation
+
+# TODO
+
+# URGENT
+# By tokenizing dev again before rescoring, we break the subword encoding -- we _must_ realign to fix this
 
 
 

@@ -24,10 +24,10 @@ nematus=~/projects/nematus
 
 #DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
 DATADIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
-ORIG_SRC_FILE=$DATADIR/dev.src.bpe
+ORIG_SRC_FILE=$DATADIR/dev.src
 PREPPED_SRC_FILE=$DATADIR/dev.src.bpe.prepped
 
-ORIG_TRG_FILE=$DATADIR/dev.mt.bpe
+ORIG_TRG_FILE=$DATADIR/dev.mt
 PREPPED_TRG_FILE=$DATADIR/dev.mt.bpe.prepped
 TRG_FILE=$DATADIR/train.mt.numbered
 OUTPUT_FILE=$DATADIR/dev.mt.rescored
