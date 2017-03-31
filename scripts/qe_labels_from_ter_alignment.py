@@ -23,7 +23,7 @@ def extract_ter_alignment(hyps_file, refs_file, output_path, src_lang, trg_lang,
     tercom_jar = os.path.join(tercom_path, 'tercom.7.25.jar')
 
     mkdir_p(output_path)
-    output_prefix = os.path.join(output_path, '{}-{}.tercom.out'.format(src_lang, trg_lang))
+    output_prefix = os.path.join('{}-{}.tercom.out'.format(src_lang, trg_lang))
 
     # WORKING: we need to put hyps and refs files in a special format
     hyps_file_iter = codecs.open(hyps_file, encoding='utf8')
@@ -70,7 +70,6 @@ if __name__ == '__main__':
     parser.add_argument("--hyps", help="The target language code")
     parser.add_argument("--refs", help="The target language code")
     parser.add_argument("--output", help="Where to output the TER alignment files")
-    parser.add_argument("--prefix", help="The prefix to use for the output data")
     parser.add_argument("--src_lang", help="The source language code")
     parser.add_argument("--trg_lang", help="The target language code")
     parser.add_argument("--tercom", help="The path to the directory containing tercom.7.25.jar")

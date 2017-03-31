@@ -47,6 +47,8 @@ qe_sequence_labeling=~/projects/qe_sequence_labeling/
 
 python $qe_sequence_labeling/scripts/qe_labels_from_ter_alignment.py --hyps $hyp --refs $ref --output $TMP_DIR --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM
 
+python $qe_sequence_labeling/scripts/qe_metrics_from_files.py --hyps $TMP_DIR/$SRC_LANG-$TRG_LANG.tercom.out --refs $DATADIR/dev.tags --output $TMP_DIR/qe_dev_report
+
 # now compute F1 product from two files
 # WORKING: script to compute F1 product from two files
 # $TMP_DIR/en-de.tercom.out.tags
