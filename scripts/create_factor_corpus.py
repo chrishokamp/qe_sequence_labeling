@@ -53,4 +53,4 @@ if __name__ == '__main__':
     parser.add_argument("--output", help="Where the new corpus should written")
 
     args = parser.parse_args()
-    main(args.json, args.output, order=args.order)
+    main(args.f1, args.f2, args.output)

@@ -24,7 +24,7 @@ THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$device,on_unused_input=warn py
      -k 12 -n -p 1
 
 
-postprocess-dev.sh < $dev.output.dev > $dev.output.postprocessed.dev
+bash postprocess-dev.sh < $dev.output.dev > $dev.output.postprocessed.dev
 
 ## get BLEU
 BEST=`cat ${prefix}_best_bleu || echo 0`

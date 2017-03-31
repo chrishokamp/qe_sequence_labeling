@@ -41,7 +41,7 @@ if __name__ == '__main__':
                     tie_encoder_decoder_embeddings=False,
                     factors=2,
                     dim_per_factor=[128, 128],
-                    validFreq=500,
+                    validFreq=2000,
                     dispFreq=100,
                     saveFreq=5000,
                     sampleFreq=1000,
