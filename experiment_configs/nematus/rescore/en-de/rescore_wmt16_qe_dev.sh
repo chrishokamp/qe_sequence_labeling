@@ -25,16 +25,17 @@ nematus=~/projects/nematus
 #DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
 DATADIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
 ORIG_SRC_FILE=$DATADIR/dev.src
-PREPPED_SRC_FILE=$DATADIR/dev.src.bpe.prepped
+PREPPED_SRC_FILE=$DATADIR/dev.src.prepped
 
 ORIG_TRG_FILE=$DATADIR/dev.mt
-PREPPED_TRG_FILE=$DATADIR/dev.mt.bpe.prepped
+PREPPED_TRG_FILE=$DATADIR/dev.mt.prepped
 TRG_FILE=$DATADIR/dev.mt.numbered
 OUTPUT_FILE=$DATADIR/dev.mt.rescored
 
 $mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $TRG < $ORIG_TRG_FILE > ${ORIG_TRG_FILE}_1
 $mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $TRG -penn < ${ORIG_TRG_FILE}_1 > ${ORIG_TRG_FILE}_2
-$subword_nmt/apply_bpe.py -c $SRC$TRG.bpe < ${ORIG_TRG_FILE}_2 > $PREPPED_TRG_FILE
+$mosesdecoder/scripts/recaser/truecase.perl -model truecase-model.$TRG < ${ORIG_TRG_FILE}_2 > ${ORIG_TRG_FILE}_3
+$subword_nmt/apply_bpe.py -c $SRC$TRG.bpe < ${ORIG_TRG_FILE}_3 > $PREPPED_TRG_FILE
 
 echo "Finished prepping MT data"
 

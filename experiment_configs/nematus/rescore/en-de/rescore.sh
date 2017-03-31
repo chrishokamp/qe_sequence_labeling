@@ -1,11 +1,8 @@
 #!/bin/bash
 
-# this sample script translates a test set, including
+# this sample script prepares a dataset, including
 # preprocessing (tokenization, truecasing, and subword segmentation),
-# and postprocessing (merging subword units, detruecasing, detokenization).
-
-# instructions: set paths to mosesdecoder, subword_nmt, and nematus,
-# then run "./translate.sh < input_file > output_file"
+# Then performs forced decoding, and outputs a json file with alignments
 
 # suffix of source language
 SRC=en
@@ -23,20 +20,20 @@ subword_nmt=~/projects/subword_nmt
 nematus=~/projects/nematus
 
 DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
-#ORIG_SRC_FILE=$DATADIR/train.src.small
 ORIG_SRC_FILE=$DATADIR/train.src
 PREPPED_SRC_FILE=$DATADIR/train.rescore.preprocessed.src
-#ORIG_TRG_FILE=$DATADIR/train.mt.small
 ORIG_TRG_FILE=$DATADIR/train.mt
 PREPPED_TRG_FILE=$DATADIR/train.rescore.preprocessed.mt
 TRG_FILE=$DATADIR/train.mt.numbered
 OUTPUT_FILE=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16/train.mt.rescored
 
-#$mosesdecoder/scripts/recaser/truecase.perl -model truecase-model.$TRG | \
+# Note we assume that the data is already tokenized, but that special chars haven't been escaped
+#$mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $TRG -penn < ${ORIG_TRG_FILE}_1 > ${ORIG_TRG_FILE}_2
 
+$mosesdecoder/scripts/tokenizer/escape-special-chars.perl -l $TRG < ${ORIG_TRG_FILE} > ${ORIG_TRG_FILE}_1
 $mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $TRG < $ORIG_TRG_FILE > ${ORIG_TRG_FILE}_1
-$mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $TRG -penn < ${ORIG_TRG_FILE}_1 > ${ORIG_TRG_FILE}_2
-$subword_nmt/apply_bpe.py -c $SRC$TRG.bpe < ${ORIG_TRG_FILE}_2 > $PREPPED_TRG_FILE
+$mosesdecoder/scripts/recaser/truecase.perl -model truecase-model.$TRG < ${ORIG_TRG_FILE}_2 > ${ORIG_TRG_FILE}_3
+$subword_nmt/apply_bpe.py -c $SRC$TRG.bpe < ${ORIG_TRG_FILE}_3 > $PREPPED_TRG_FILE
 
 echo "Finished prepping MT data"
 
@@ -45,8 +42,11 @@ awk '{ print FNR - 1 " ||| " $0 }' $PREPPED_TRG_FILE > $TRG_FILE
 
 echo "Finished preparing fake MT one-best list"
 
-$mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $SRC < $ORIG_SRC_FILE > ${ORIG_SRC_FILE}_1
-$mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $SRC -penn < ${ORIG_SRC_FILE}_1 > ${ORIG_SRC_FILE}_2
+# Note we assume that the data is already tokenized, but that special chars haven't been escaped
+# $mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $SRC -penn < ${ORIG_SRC_FILE}_1 > ${ORIG_SRC_FILE}_2
+
+$mosesdecoder/scripts/tokenizer/escape-special-chars.perl -l $SRC < ${ORIG_SRC_FILE} > ${ORIG_SRC_FILE}_1
+$mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $SRC < ${ORIG_SRC_FILE}_1 > ${ORIG_SRC_FILE}_2
 $mosesdecoder/scripts/recaser/truecase.perl -model truecase-model.$SRC < ${ORIG_SRC_FILE}_2 > ${ORIG_SRC_FILE}_3
 $subword_nmt/apply_bpe.py -c $SRC$TRG.bpe < ${ORIG_SRC_FILE}_3 > $PREPPED_SRC_FILE
 

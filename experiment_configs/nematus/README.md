@@ -58,17 +58,17 @@ Add segment numbers to the MT to make the file appear to be an n-best list
 awk '{ print FNR - 1 " ||| " $0 }' train.mt > train.mt.numbered
 ```
 
-Use `nematus/rescore.py` to get the alignment weights between SOURCE and MT
+Use `experiment_configs/nematus/rescore/<src>-<trg>/rescore.sh` to get the alignment weights between SOURCE and MT
+This script preprocesses the data, then calls `nematus/nematus/rescore.py` to do the forced alignment.
 
 EN-DE
 ```
-/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
+source activate theano
+export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/de-en/rescore.sh
 export MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de
 cp $RESCORE_SCRIPT $MODEL_DIR
 cd $MODEL_DIR
 bash rescore.sh
-
-
 ```
 
 DE-EN
@@ -140,6 +140,8 @@ export OUTPUT_DIR=$ORIG_DATA_DIR/factored_ape_corpus
 export BPE_CODES=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de/ende.bpe
 export mosesdecoder=~/projects/mosesdecoder
 export subword_nmt=~/projects/subword_nmt
+
+# $mosesdecoder/scripts/tokenizer/escape-special-chars.perl -l $LANG | \
 
 $mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $LANG | \ 
 $mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $LANG -penn | \ 
