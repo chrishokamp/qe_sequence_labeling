@@ -14,7 +14,7 @@ prefix=model/model.npz
 
 DATADIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
 dev=$DATADIR/dev.mt_aligned_with_source.factor
-ref=$DATADIR/dev.pe.prepped
+ref=$DATADIR/dev.pe
 
 # decode
 THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$device,on_unused_input=warn python $nematus/nematus/translate.py \
@@ -37,7 +37,9 @@ echo "BLEU = $BLEU"
 ## get f1 product using TER alignment
 DROPBOX=/media/1tb_drive/Dropbox
 TERCOM=$DROPBOX/data/qe/sw/tercom-0.7.25
-hyp=$dev.output.postprocessed.dev
+# note we use the APE hypothesis as the pseudo-ref
+pseudo_ref=$dev.output.postprocessed.dev
+orig_hyps=$DATADIR/dev.mt
 SRC_LANG=en
 TRG_LANG=de
 TMP_DIR=dev_ter_tmp
@@ -45,13 +47,10 @@ mkdir -p $TMP_DIR
 
 qe_sequence_labeling=~/projects/qe_sequence_labeling/
 
-python $qe_sequence_labeling/scripts/qe_labels_from_ter_alignment.py --hyps $hyp --refs $ref --output $TMP_DIR --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM
-
-python $qe_sequence_labeling/scripts/qe_metrics_from_files.py --hyps $TMP_DIR/${SRC_LANG}-${TRG_LANG}.tercom.out.tags --gold $DATADIR/dev.tags --output $TMP_DIR/qe_dev_report
+python $qe_sequence_labeling/scripts/qe_labels_from_ter_alignment.py --hyps $orig_hyps --refs $pseudo_ref --output $TMP_DIR --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM
 
 # now compute F1 product from two files
-# WORKING: script to compute F1 product from two files
-# $TMP_DIR/en-de.tercom.out.tags
+python $qe_sequence_labeling/scripts/qe_metrics_from_files.py --hyps $TMP_DIR/${SRC_LANG}-${TRG_LANG}.tercom.out.tags --gold $DATADIR/dev.tags --output $TMP_DIR/qe_dev_report
 
 # save model with highest BLEU
 if [ "$BETTER" = "1" ]; then

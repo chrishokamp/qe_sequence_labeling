@@ -41,10 +41,10 @@ if __name__ == '__main__':
                     tie_encoder_decoder_embeddings=False,
                     factors=2,
                     dim_per_factor=[128, 128],
-                    validFreq=2000,
-                    dispFreq=100,
+                    validFreq=5000,
+                    dispFreq=500,
                     saveFreq=5000,
-                    sampleFreq=1000,
+                    sampleFreq=5000,
                     use_dropout=False,
                     dropout_embedding=0.2, # dropout for input embeddings (0: no dropout)
                     dropout_hidden=0.2, # dropout for hidden layers (0: no dropout)

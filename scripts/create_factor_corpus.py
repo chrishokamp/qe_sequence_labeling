@@ -25,7 +25,6 @@ def concat_tokens(seq1, seq2):
     return [u'|'.join([tok1, tok2]) for tok1, tok2 in zip(seq1, seq2)]
 
 
-# WORKING: remember to tie mt + output embeddings, and to try to initialize embeddings from pre-trained models
 def main(factor_1_file, factor_2_file, factor_corpus_output):
 
     factor_1 = codecs.open(factor_1_file, encoding='utf8')

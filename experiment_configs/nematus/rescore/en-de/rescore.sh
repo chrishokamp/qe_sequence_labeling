@@ -19,53 +19,59 @@ subword_nmt=~/projects/subword_nmt
 # path to nematus ( https://www.github.com/rsennrich/nematus )
 nematus=~/projects/nematus
 
-DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16
-ORIG_SRC_FILE=$DATADIR/train.src
-PREPPED_SRC_FILE=$DATADIR/train.rescore.preprocessed.src
-ORIG_TRG_FILE=$DATADIR/train.mt
-PREPPED_TRG_FILE=$DATADIR/train.rescore.preprocessed.mt
-TRG_FILE=$DATADIR/train.mt.numbered
-OUTPUT_FILE=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/concat_500k_with_wmt16/train.mt.rescored
-
-# Note we assume that the data is already tokenized, but that special chars haven't been escaped
-#$mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $TRG -penn < ${ORIG_TRG_FILE}_1 > ${ORIG_TRG_FILE}_2
-
-$mosesdecoder/scripts/tokenizer/escape-special-chars.perl -l $TRG < ${ORIG_TRG_FILE} > ${ORIG_TRG_FILE}_1
-$mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $TRG < $ORIG_TRG_FILE > ${ORIG_TRG_FILE}_1
-$mosesdecoder/scripts/recaser/truecase.perl -model truecase-model.$TRG < ${ORIG_TRG_FILE}_2 > ${ORIG_TRG_FILE}_3
-$subword_nmt/apply_bpe.py -c $SRC$TRG.bpe < ${ORIG_TRG_FILE}_3 > $PREPPED_TRG_FILE
-
-echo "Finished prepping MT data"
-
-# add numbers
-awk '{ print FNR - 1 " ||| " $0 }' $PREPPED_TRG_FILE > $TRG_FILE
-
-echo "Finished preparing fake MT one-best list"
-
-# Note we assume that the data is already tokenized, but that special chars haven't been escaped
-# $mosesdecoder/scripts/tokenizer/tokenizer.perl -threads 10 -l $SRC -penn < ${ORIG_SRC_FILE}_1 > ${ORIG_SRC_FILE}_2
-
-$mosesdecoder/scripts/tokenizer/escape-special-chars.perl -l $SRC < ${ORIG_SRC_FILE} > ${ORIG_SRC_FILE}_1
-$mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l $SRC < ${ORIG_SRC_FILE}_1 > ${ORIG_SRC_FILE}_2
-$mosesdecoder/scripts/recaser/truecase.perl -model truecase-model.$SRC < ${ORIG_SRC_FILE}_2 > ${ORIG_SRC_FILE}_3
-$subword_nmt/apply_bpe.py -c $SRC$TRG.bpe < ${ORIG_SRC_FILE}_3 > $PREPPED_SRC_FILE
+qe_seq_dir=~/projects/qe_sequence_labeling/
 
 # theano device
 device=cuda
 
-# preprocess
-# rescore and output alignments
-#     -m model-ens{1,2,3,4}.npz \
-THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$device,on_unused_input=warn python $nematus/nematus/rescore.py \
-     -b 1 \
-     -n \
-     -s $PREPPED_SRC_FILE \
-     -i $TRG_FILE \
-     -o $OUTPUT_FILE \
-     -m model-ens1.npz \
-     --walign
-# postprocess
-#sed 's/\@\@ //g' | \
-#$mosesdecoder/scripts/recaser/detruecase.perl | \
-#$mosesdecoder/scripts/tokenizer/detokenizer.perl -l $TRG
+# WORKING: follow rescore.sh in scoring and extracting alignments for {train,dev} simultaeneously
+
+# NOTE: APE 2016 EN-DE data is the same as QE 2016 data, APE 2017 EN-DE data is the same as QE 2017 data
+APE_4M_DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M
+APE500K_DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
+APE_DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+
+# This is the model we use to obtain MT-SRC alignments
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/src-pe
+MODEL_PREFIX=${MODEL_DIR}/model.iter
+
+# we need to go to the dir because the paths in the <config>.json files are local to ${MODEL_DIR}
+cd ${MODEL_DIR}
+
+for DIR in $APE_4M_DATADIR $APE500k_DATADIR $APE_DATADIR
+do
+    echo "Preparing data in $DIR"
+    # NOTE: dev data may not exist in every directory, so errors will print when dev.* isn't found
+    # NOTE: even though we're loading every model, we're actually getting alignments only from the first one
+
+    for PREFIX in train dev
+    do
+        FAKE_NBEST=$DIR/$PREFIX.mt.fake_nbest
+        # add numbers
+        awk '{ print FNR - 1 " ||| " $0 }' $DIR/$PREFIX.mt.prepped > $FAKE_NBEST
+        # extract alignments
+        THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$device,on_unused_input=warn python $nematus/nematus/rescore.py \
+         -b 64 \
+         -n \
+         -s ${DIR}/${PREFIX}.src.prepped \
+         -i $FAKE_NBEST \
+         -o ${DIR}/${PREFIX}.mt.rescore_output \
+         -m ${MODEL_PREFIX}{340000,350000,360000,370000}.npz \
+         --walign
+
+         echo "Finished computing alignments between $DIR/$PREFIX.src.prepped and $DIR/$PREFIX.mt.prepped"
+
+         # NOW EXTRACT ALIGNMENT CORPUS
+         python $qe_seq_dir/scripts/alignment_corpus_from_nematus_json_output.py --json ${DIR}/${PREFIX}.mt.rescore_output_withwords.json --output ${DIR}/${PREFIX}.mt_source_aligned --order target
+         python $qe_seq_dir/scripts/create_factor_corpus.py --f1 ${DIR}/${PREFIX}.mt.prepped --f2 ${DIR}/${PREFIX}.mt_source_aligned --output ${DIR}/${PREFIX}.mt.factor_corpus
+
+    done
+
+done
+
+
+
+echo "Finished preparing fake MT one-best list"
+
+
 

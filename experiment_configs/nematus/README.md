@@ -61,10 +61,13 @@ awk '{ print FNR - 1 " ||| " $0 }' train.mt > train.mt.numbered
 Use `experiment_configs/nematus/rescore/<src>-<trg>/rescore.sh` to get the alignment weights between SOURCE and MT
 This script preprocesses the data, then calls `nematus/nematus/rescore.py` to do the forced alignment.
 
+WORKING: add preprocess.sh, factor out from rescore.sh
+WORKING: remember that QE data must be prepped in exactly the same way as MT data
+
 EN-DE
 ```
 source activate theano
-export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/de-en/rescore.sh
+export RESCORE_SCRIPT=~/projects/qe_sequence_labeling/experiment_configs/nematus/rescore/en-de/rescore.sh
 export MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/pretrained_wmt16_models/en-de
 cp $RESCORE_SCRIPT $MODEL_DIR
 cd $MODEL_DIR
