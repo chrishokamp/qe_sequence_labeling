@@ -54,7 +54,6 @@ def extract_ter_alignment(hyps_file, refs_file, output_path, src_lang, trg_lang,
     mt_tokens, pe_tokens, edits, hters = \
         parse_pra_xml.parse_file('{}.xml'.format(output_prefix))
 
-    # WORKING HERE
     tags_map = {'C': 'OK', 'S': 'BAD', 'I': 'BAD', 'D': 'BAD'}
     tags = [parse_pra_xml.get_tags(edit, tags_map, keep_inserts=False) for edit in edits]
 

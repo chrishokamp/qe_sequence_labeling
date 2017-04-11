@@ -143,10 +143,16 @@ def truncate_at_eos(mt, preds, true, eos_token=u'</S>'):
 def accuracy(preds, true):
     correct = 0
     total = 0
+
+    c = 1
     for p, t in zip(preds, true):
-        assert len(p) == len(t)
+        try:
+            assert len(p) == len(t)
+        except:
+            print('ERROR: pair {} -- len(p): {}, len(t): {}'.format(c, len(p), len(t)))
         correct += sum([1 for p_w, t_w in zip(p, t) if p_w==t_w])
         total += len(p)
+        c += 1
     return float(correct) / float(total)
 
 

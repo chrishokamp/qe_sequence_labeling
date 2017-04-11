@@ -9,6 +9,7 @@ import argparse
 import json
 
 from sequence_qe.evaluation import accuracy, f1_scores
+from sequence_qe.dataset import tokens_from_file
 
 
 logging.basicConfig()
@@ -16,14 +17,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def tags_from_file(tags_file):
-    with codecs.open(tags_file, encoding='utf8') as inp:
-        return [r.strip().split() for r in inp]
-
-
 def main(hyps_file, gold_file, output_prefix):
-    hyps = tags_from_file(hyps_file)
-    gold = tags_from_file(gold_file)
+    hyps = tokens_from_file(hyps_file)
+    gold = tokens_from_file(gold_file)
 
     acc = accuracy(hyps, gold)
 

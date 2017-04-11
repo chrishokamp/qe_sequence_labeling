@@ -7,13 +7,13 @@ nematus=~/projects/nematus/
 mosesdecoder=~/projects/mosesdecoder/
 
 # theano device, in case you do not want to compute on gpu, change it to cpu
-device=cuda
+device=cuda1
 
 #model prefix
 prefix=model/model.npz
 
-DATADIR=/media/1tb_drive/Dropbox/data/qe/wmt_2016/dev_wmt16_pretrained_bpe
-dev=$DATADIR/dev.mt_aligned_with_source.factor
+DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+dev=$DATADIR/dev.mt.factor_corpus
 ref=$DATADIR/dev.pe
 
 # decode

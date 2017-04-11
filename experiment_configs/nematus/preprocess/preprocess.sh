@@ -26,10 +26,10 @@ TRG_TRUECASE=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/syst
 
 # NOTE: APE 2016 EN-DE data is the same as QE 2016 data, APE 2017 EN-DE data is the same as QE 2017 data
 APE_4M_DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M
-APE500K_DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
+APE_500K_DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
 APE_DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
 
-for DIR in $APE_4M_DATADIR $APE500k_DATADIR $APE_DATADIR
+for DIR in $APE_4M_DATADIR $APE_500K_DATADIR $APE_DATADIR
 do
     echo "Preparing data in $DIR"
     # NOTE: dev data may not exist in every directory, so errors will print when dev.* isn't found

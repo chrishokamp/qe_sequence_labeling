@@ -7,4 +7,5 @@ mosesdecoder=~/projects/mosesdecoder/
 lng=de
 
 sed 's/\@\@ //g' | \
-$mosesdecoder/scripts/recaser/detruecase.perl
+$mosesdecoder/scripts/recaser/detruecase.perl | \
+$mosesdecoder/scripts/tokenizer/deescape-special-chars.perl

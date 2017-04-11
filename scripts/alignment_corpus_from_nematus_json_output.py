@@ -54,7 +54,7 @@ def parse_json_row_file(json_row_file):
                 yield row
             except:
                 logger.error('Error parsing row')
-                print(row)
+                #print(row)
                 yield None
 
 
@@ -118,10 +118,14 @@ def extract_word_alignment(source_sequence, target_sequence, alignments, order='
 def main(nematus_json_file, output_file, order='source', eos_token=u'eos'):
 
     output = codecs.open(output_file, 'w', encoding='utf8')
+    # Note: it's important that we start the row count at 1, because we'll use the row numbers afterward
+    # to delete rows that had json parsing errors
     row_count = 1
+    deleted_rows = open(nematus_json_file + '.deleted_rows', 'w')
     for row_obj in parse_json_row_file(nematus_json_file):
         if row_obj is None:
             logger.error('DELETED ROW: {}'.format(row_count))
+            deleted_rows.write('{}\n'.format(row_count))
             row_count += 1
             continue
         source_tokens = row_obj['source_sent'].split() + [eos_token]
@@ -138,6 +142,7 @@ def main(nematus_json_file, output_file, order='source', eos_token=u'eos'):
 
 
     output.close()
+    deleted_rows.close()
     logger.info('Wrote aligned tokens in {} order to: {}'.format(order, output_file))
 
 

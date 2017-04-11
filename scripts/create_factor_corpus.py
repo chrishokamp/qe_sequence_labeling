@@ -21,7 +21,10 @@ from sequence_qe.dataset import parallel_iterator
 
 
 def concat_tokens(seq1, seq2):
-    assert len(seq1) == len(seq2)
+    try:
+        assert len(seq1) == len(seq2)
+    except:
+        import ipdb; ipdb.set_trace()
     return [u'|'.join([tok1, tok2]) for tok1, tok2 in zip(seq1, seq2)]
 
 
