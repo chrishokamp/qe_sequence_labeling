@@ -15,5 +15,5 @@ setuptools.setup(
                  'License :: OSI Approved :: BSD License',
                  'Operating System :: OS Independent',
                  'Topic :: Scientific/Engineering'],
-    packages = ['sequence_qe'],
+    packages=['sequence_qe'],
 )

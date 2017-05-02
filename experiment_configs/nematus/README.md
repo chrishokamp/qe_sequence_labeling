@@ -40,16 +40,10 @@ THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=cuda,on_unused_input=warn pytho
 ```
 
 
-##### Train DE-EN system
 
+TODO(chrishokamp): the workflow below has been superceded by the scripts in `experiment_configs/nematus/preprocess`
+TODO(chrishokamp): remove most of the specific commands below and refer reader to the scripts
 
-### Using WMT 16 Pre-trained models
-
-```
-# Download the files for the language pair that you want to use (see README link for other commands)
-
-
-```
 
 #### Forced decoding and extracting alignments 
 
@@ -193,7 +187,6 @@ THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=cuda,on_unused_input=warn pytho
 
 ```
 
-
 Train SRC-->PE and MT-->PE baselines on 500k+WMT QE APE corpus
 
 Dev process (i.e. the job of `validate.sh`):
@@ -202,9 +195,11 @@ Dev process (i.e. the job of `validate.sh`):
 (3) compute TER tags per-line for translated output against dev.pe
 (4) compute f1 product against gold tags, use as validation metric
 
+#### 
 
-# Dev
-# Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation
+### Notes
+#### Dev
+Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation
 
 
 

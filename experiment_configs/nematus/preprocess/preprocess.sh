@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# this script prepares a dataset, including
+# this script prepares an APE dataset, including
 # preprocessing (tokenization, truecasing, and subword segmentation).
 # Note that preprocessing is system and language-pair specific
 
@@ -16,7 +16,7 @@ mosesdecoder=~/projects/mosesdecoder
 # path to subword segmentation scripts: https://github.com/rsennrich/subword-nmt
 subword_nmt=~/projects/subword_nmt
 
-# path to nematus ( https://www.github.com/rsennrich/nematus )
+# path to nematus (https://www.github.com/rsennrich/nematus)
 nematus=~/projects/nematus
 
 SRC_BPE=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/data/en.bpe
