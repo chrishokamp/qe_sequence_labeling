@@ -1,0 +1,66 @@
+------------------------------------------------------------------------
+                     EVALUATION SCRIPT FOR THE APE TASK AT WMT 2015
+
+	Rajen Chatterjee
+	Matteo Negri
+        Marco Turchi
+        
+------------------------------------------------------------------------
+
+This software allows a user to compute the HTER (case sensitive and insensitive) of the automatic post-edited sentences. It needs the automatic and human post-edited sentences. This package includes:
+1) runTER.sh: script used to compute the HTER
+2) tercom.7.25.jar: tercom software (http://www.cs.umd.edu/~snover/tercom/) called using the default parameters.
+3) AddSentenceId.py: additional python script (AddSentenceId.py) used to transform the raw input text in the tercom-like format.
+
+
+============
+INFORMATION
+============
+
+This distribution already includes the tercom software in the folder tercom-0.7.25/. The script AddSentenceId.py is in the tercom-0.7.25 folder. Tercom requires java installed on your machine.
+
+This script has been tested on Linux and Mac machines. 
+
+=====
+USAGE
+=====
+
+Currently, the following options are supported:
+	-h <hypothesis file>
+	-r <reference file>
+	-s <string identifier>
+	-o <output folder>
+
+To run the script:
+./runTER.sh -h <hypothesis file> -r <reference file> -s <string identifier> -o <output folder>
+
+
+=======
+EXAMPLE
+=======
+
+./runTER.sh -h ./test/data.mt -r ./test/data.pe -s Test -o ./test/out/
+
+It will create the following files:
+1) in test/ :
+date.mt_Test_ter
+data.pe_Test_ter
+the files contain the raw original mt and pe sentences in the tercom format
+
+2) in ./test/out/
+Test_TER_output_caseInsens.sum  (Case Insensitive)
+Test_TER_output_caseSens.sum (Case Sensitive)
+
+the expected outputs for comparison are in ./test/out_correct/
+
+
+=======
+HELP
+=======
+
+For any problem, please contact:
+wmt-ape@fbk.eu
+or 
+turchi@fbk.eu
+
+
