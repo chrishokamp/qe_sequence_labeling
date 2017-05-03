@@ -351,7 +351,7 @@ TODO: output vocabularies for all factor tagsets using the mapped factor corpus
 TODO: move *.orig *pe files to spacy corpus 500K and APE Internal dirs
 TODO: for german, only use token POS and Head POS as features, dependency parse tokens look weird
 TODO: see here: https://explosion.ai/blog/german-model#word-order for more info on the german dependency parsing model
-TODO: if `factor_separator` occurs in a token, map it to something else i.e. '+'
+TODO: if `factor_separator` occurs in a surface form, or a factored tag, replace it with something else i.e. '_BAR_'
 
 
 
