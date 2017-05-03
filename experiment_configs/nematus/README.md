@@ -195,9 +195,174 @@ Dev process (i.e. the job of `validate.sh`):
 (3) compute TER tags per-line for translated output against dev.pe
 (4) compute f1 product against gold tags, use as validation metric
 
-#### 
+
+### Creating a Factor Corpus with Spacy
+
+Extract a concatenated source corpus with rich features (POS tags, head words, dependency relations)
+
+```
+# 4M
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M
+# src
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
+# mt 
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
+
+# 500K
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
+# src
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
+# mt 
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
+
+# APE internal
+DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+# train
+# src
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
+# mt 
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
+# dev
+# src
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.src -o $DATADIR/spacy_factor_corpus -l en -p dev 
+# mt 
+python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.mt -o $DATADIR/spacy_factor_corpus -l de -p dev 
+
+# APE test data
+
+# QE test data
+```
+
+Learn BPE encoding for the text factor of Spacy extracted corpus
+INFO:__main__:Wrote new files: /media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus/train.en.tok and /media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus/train.en.factors
+```
+# follow subword-nmt best practices here
+# NOTE: Remember that we need the version of 4M without rows removed for reference data
+
+SUBWORD=~/projects/subword_nmt
+NUM_OPERATIONS=40000
+
+# Learn BPE on 4M dataset
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus
+
+python $SUBWORD/learn_joint_bpe_and_vocab.py --input $DATADIR/train.en.tok $DATADIR/train.de.tok -s $NUM_OPERATIONS -o $DATADIR/en-de.spacy_tokenization.codes.bpe --write-vocabulary $DATADIR/vocab.en $DATADIR/vocab.de 
+
+# Apply the vocabulary to the train data with the vocabulary threshold enabled
+python $SUBWORD/apply_bpe.py -c $DATADIR/en-de.spacy_tokenization.codes.bpe --vocabulary $DATADIR/vocab.en --vocabulary-threshold 50 < $DATADIR/train.en.tok > $DATADIR/train.en.bpe
+python $SUBWORD/apply_bpe.py -c $DATADIR/en-de.spacy_tokenization.codes.bpe --vocabulary $DATADIR/vocab.de --vocabulary-threshold 50 < $DATADIR/train.de.tok > $DATADIR/train.de.bpe
+
+# as a last step, extract the vocabulary to be used by the neural network. Example with Nematus:
+NEMATUS=~/projects/nematus
+python $NEMATUS/data/build_dictionary.py $DATADIR/train.en.bpe $DATADIR/train.de.bpe
+
+# for other data, re-use the same options for consistency:
+# 500K
+VOCAB_DIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K/spacy_factor_corpus
+
+python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.en --vocabulary-threshold 50 < $DATADIR/train.en.tok > $DATADIR/train.en.bpe
+python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.de --vocabulary-threshold 50 < $DATADIR/train.de.tok > $DATADIR/train.de.bpe
+
+# APE Internal
+VOCAB_DIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus
+DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_factor_corpus
+
+# train
+python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.en --vocabulary-threshold 50 < $DATADIR/train.en.tok > $DATADIR/train.en.bpe
+python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.de --vocabulary-threshold 50 < $DATADIR/train.de.tok > $DATADIR/train.de.bpe
+
+# dev
+python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.en --vocabulary-threshold 50 < $DATADIR/dev.en.tok > $DATADIR/dev.en.bpe
+python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.de --vocabulary-threshold 50 < $DATADIR/dev.de.tok > $DATADIR/dev.de.bpe
+```
+
+Map factors through BPE segmentation, add B-* and I-* factors
+```
+SEQUENCE_QE=~/projects/qe_sequence_labeling
+
+# 4M
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus
+# src
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors
+# mt
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors
+
+# 500K
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K/spacy_factor_corpus
+# src
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors
+# mt
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors
+
+
+# APE Internal
+DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_factor_corpus
+
+# Train
+# src
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors
+# mt
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors
+
+# Dev
+# src
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/dev.en.bpe -f $DATADIR/dev.en.factors
+# mt
+python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/dev.de.bpe -f $DATADIR/dev.de.factors
+```
+
+Map text and factor tokens back together
+```
+SEQUENCE_QE=~/projects/qe_sequence_labeling
+
+# 4M
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus
+# src
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors.bpe
+# mt
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors.bpe
+
+# 500K
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K/spacy_factor_corpus
+# src
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors.bpe
+# mt
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors.bpe
+
+# APE Internal
+DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_factor_corpus
+
+# Train
+# src
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors.bpe
+# mt
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors.bpe
+
+# Dev
+# src
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/dev.en.bpe -f $DATADIR/dev.en.factors.bpe
+# mt
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/dev.de.bpe -f $DATADIR/dev.de.factors.bpe
+
+
+```
+
+TODO: output vocabularies for all factor tagsets using the mapped factor corpus
+TODO: move *.orig *pe files to spacy corpus 500K and APE Internal dirs
+TODO: for german, only use token POS and Head POS as features, dependency parse tokens look weird
+TODO: see here: https://explosion.ai/blog/german-model#word-order for more info on the german dependency parsing model
+TODO: if `factor_separator` occurs in a token, map it to something else i.e. '+'
+
+
 
 ### Notes
+
+We also want to try:
+(1) min-risk training (ideally directly against TER)
+(2) constrained decoding with terminology extracted from in-domain data
+    - the terms should be extracted from (mt-pe), and should be errors which are _always_ corrected when we see them
+
+
 #### Dev
 Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation
 

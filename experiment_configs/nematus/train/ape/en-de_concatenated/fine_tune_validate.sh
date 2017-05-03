@@ -7,13 +7,13 @@ nematus=~/projects/nematus/
 mosesdecoder=~/projects/mosesdecoder/
 
 # theano device, in case you do not want to compute on gpu, change it to cpu
-device=cuda0
+device=cuda1
 
 #model prefix
 prefix=model/model.npz
 
 DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
-dev=$DATADIR/dev.mt.factor_corpus
+dev=$DATADIR/dev.src-mt.concatenated
 ref=$DATADIR/dev.pe
 
 # decode
@@ -22,7 +22,6 @@ THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$device,on_unused_input=warn py
      -i $dev \
      -o $dev.output.fine_tune.dev \
      -k 12 -n -p 1
-
 
 bash postprocess-dev.sh < $dev.output.fine_tune.dev > $dev.output.fine_tune.postprocessed.dev
 
@@ -33,6 +32,13 @@ BLEU=`$mosesdecoder/scripts/generic/multi-bleu.perl $ref < $dev.output.fine_tune
 BETTER=`echo "$BLEU > $BEST" | bc`
 
 echo "BLEU = $BLEU"
+
+# save model with highest BLEU
+if [ "$BETTER" = "1" ]; then
+  echo "new best; saving"
+  echo $BLEU > ${prefix}_best_bleu
+  cp ${prefix}.dev.npz ${prefix}.npz.best_bleu
+fi
 
 ## get f1 product using TER alignment
 DROPBOX=/media/1tb_drive/Dropbox
@@ -49,15 +55,13 @@ qe_sequence_labeling=~/projects/qe_sequence_labeling/
 
 TIMESTAMP=`date +"%Y-%m-%d_%H-%M-%S"`
 
-
 python $qe_sequence_labeling/scripts/qe_labels_from_ter_alignment.py --hyps $orig_hyps --refs $pseudo_ref --output $TMP_DIR --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM
 
 # now compute F1 product from two files
 python $qe_sequence_labeling/scripts/qe_metrics_from_files.py --hyps $TMP_DIR/${SRC_LANG}-${TRG_LANG}.tercom.out.tags --gold $DATADIR/dev.tags --output $TMP_DIR/qe_dev_report_${TIMESTAMP}
 
-# save model with highest BLEU
-if [ "$BETTER" = "1" ]; then
-  echo "new best; saving"
-  echo $BLEU > ${prefix}_best_bleu
-  cp ${prefix}.dev.npz ${prefix}.npz.best_bleu
-fi
+# WORKING: now run WMT APE evaluation script
+echo "Running WMT 2017 APE evaluation"
+bash $qe_sequence_labeling/scripts/wmt_ape_evaluation/Evaluation_Script/runTER.sh -h $pseudo_ref -r $ref -s $TIMESTAMP -o $TMP_DIR
+
+

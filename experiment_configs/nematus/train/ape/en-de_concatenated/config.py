@@ -3,6 +3,7 @@ import os
 import sys
 
 from nematus.nmt import train
+from sequence_qe.dataset import mkdir_p
 
 # the size of the src+mt concatenated data vocab
 SRC_AND_MT_VOCAB_SIZE = 68642

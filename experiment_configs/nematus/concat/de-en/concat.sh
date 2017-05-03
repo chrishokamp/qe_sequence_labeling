@@ -1,9 +1,7 @@
 #!/bin/bash
 
 # concat source and mt files, separated by a special token, for use as input into an NMT system
-# WORKING HERE
-# TODO: extract a new source vocabulary for the concatenated input data
-# TODO: the delimiter between src-mt is particularly important
+# remember that we need to extract a new source vocabulary for the concatenated input data
 
 # path to moses decoder: https://github.com/moses-smt/mosesdecoder
 mosesdecoder=~/projects/mosesdecoder
