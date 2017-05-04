@@ -22,17 +22,6 @@ APE_4M_DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/
 APE_500K_DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K/spacy_factor_corpus
 APE_DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_factor_corpus
 
-NUM_FACTORS=3
-
-# WORKING: duplicate the join token across all factors
-# WORKING: remember that factor corpora also need to be re-joined after mapping segmentation (i.e. join text+factors)
-function join_by { local IFS="$1"; shift; echo "$*"; }
-
-concat_token='@BREAK@'
-concat_factor_array=()
-for ((i=0; i<NUM_FACTORS; i++)); do concat_factor_array+=(${concat_token}); done;
-
-CONCAT_FACTOR=`join_by \|  "${concat_factor_array[@]}"`
 
 for DIR in $APE_4M_DATADIR $APE_500K_DATADIR $APE_DATADIR
 do
@@ -42,12 +31,12 @@ do
     for PREFIX in train dev
     do
         # note: /dev/null is used to make paste insert two tabs in a row as the delimiter: https://unix.stackexchange.com/questions/115754/paste-command-setting-multiple-delimiters
-        paste ${DIR}/${PREFIX}.en.factors.bpe /dev/null ${DIR}/${PREFIX}.de.factors.bpe | sed "s/\t\t/ ${CONCAT_FACTOR} /g" > ${DIR}/${PREFIX}.src-mt.concatenated.factors.bpe
-        echo "Wrote: ${DIR}/${PREFIX}.src-mt.concatenated.factors.bpe"
+        paste ${DIR}/${PREFIX}.en.bpe /dev/null ${DIR}/${PREFIX}.de.bpe | sed 's/\t\t/ \@BREAK\@ /g'  > ${DIR}/${PREFIX}.src-mt.concatenated.bpe
+        echo "Wrote: ${DIR}/${PREFIX}.src-mt.concatenated.bpe"
     done
 done
 
 # Now extract the nematus vocabulary from the concatenated source-mt
-# python $nematus/data/build_dictionary.py ${APE_4M_DATADIR}/train.src-mt.concatenated
-# echo "Vocabulary is in ${APE_4M_DATADIR}/train.src-mt.concatenated.json"
+python $nematus/data/build_dictionary.py ${APE_4M_DATADIR}/train.src-mt.concatenated.bpe
+echo "Vocabulary is in ${APE_4M_DATADIR}/train.src-mt.concatenated.bpe.json"
 

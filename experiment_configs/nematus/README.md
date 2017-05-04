@@ -236,11 +236,10 @@ python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.mt -
 # QE test data
 ```
 
-Learn BPE encoding for the text factor of Spacy extracted corpus
+Learn joint BPE encoding for the text factor of the concatenated Spacy extracted corpus
 INFO:__main__:Wrote new files: /media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus/train.en.tok and /media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus/train.en.factors
 ```
 # follow subword-nmt best practices here
-
 SUBWORD=~/projects/subword_nmt
 NUM_OPERATIONS=40000
 
@@ -252,10 +251,6 @@ python $SUBWORD/learn_joint_bpe_and_vocab.py --input $DATADIR/train.en.tok $DATA
 # Apply the vocabulary to the train data with the vocabulary threshold enabled
 python $SUBWORD/apply_bpe.py -c $DATADIR/en-de.spacy_tokenization.codes.bpe --vocabulary $DATADIR/vocab.en --vocabulary-threshold 50 < $DATADIR/train.en.tok > $DATADIR/train.en.bpe
 python $SUBWORD/apply_bpe.py -c $DATADIR/en-de.spacy_tokenization.codes.bpe --vocabulary $DATADIR/vocab.de --vocabulary-threshold 50 < $DATADIR/train.de.tok > $DATADIR/train.de.bpe
-
-# as a last step, extract the vocabulary to be used by the neural network. Example with Nematus:
-NEMATUS=~/projects/nematus
-python $NEMATUS/data/build_dictionary.py $DATADIR/train.en.bpe $DATADIR/train.de.bpe
 
 # for other data, re-use the same options for consistency:
 # 500K
@@ -276,6 +271,7 @@ python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --
 # dev
 python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.en --vocabulary-threshold 50 < $DATADIR/dev.en.tok > $DATADIR/dev.en.bpe
 python $SUBWORD/apply_bpe.py -c $VOCAB_DIR/en-de.spacy_tokenization.codes.bpe --vocabulary $VOCAB_DIR/vocab.de --vocabulary-threshold 50 < $DATADIR/dev.de.tok > $DATADIR/dev.de.bpe
+
 ```
 
 Map factors through BPE segmentation, add B-* and I-* factors
@@ -313,6 +309,24 @@ python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DAT
 python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/dev.de.bpe -f $DATADIR/dev.de.factors
 ```
 
+# WORKING HERE
+# TODO: extract all factor vocabularies after concatenation but before rejoining with text corpora
+Concatenate all source and target text and factor corpora
+```
+SEQ_QE=~/projects/qe_sequence_labeling
+
+# Concat text factors
+bash $SEQ_QE/experiment_configs/nematus/concat/de-en/concat_text_factors.sh
+
+# Note this script has the paths to 4M, 500K, and APE_INTERNAL hard-coded inside it
+# Concat Spacy factors
+bash $SEQ_QE/experiment_configs/nematus/concat/de-en/concat_factor_corpora.sh
+```
+
+Note: Text factor VOCAB EXTRACTION IS DONE IN THE CONCATENATION SCRIPT
+
+Working here: extract factor vocabularies -- could write to tmp file for each factor and use nematus script
+
 Map text and factor tokens back together
 ```
 SEQUENCE_QE=~/projects/qe_sequence_labeling
@@ -349,22 +363,9 @@ python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/dev.de.b
 
 ```
 
-Concatenate source and target factor corpora
-```
-SEQ_QE=~/projects/qe_sequence_labeling
-
-# APE Internal
-# DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_factor_corpus
-bash $SEQ_QE/experiment_configs/nematus/concat/de-en/concat_factor_corpora.sh
-
-```
-
 
 TODO: redo dictionary extraction for concatenated data
 TODO: concatenate data _before_ doing any BPE splitting, etc...
-TODO: concatenatenation can also add special <SRC> and <TRG> tokens to make explicit which language sequence follows
-TODO: the intuition here is that, since the segmentation is learned jointly, we want to be explicit about which language
-TODO: we are currently using
 
 NOTE: For the Spacy factored datasets, remember that we need the version of reference data without rows removed
 TODO: move *.orig *pe files to spacy corpus 500K and APE Internal dirs
@@ -387,6 +388,10 @@ We also want to try:
     - the terms should be extracted from (mt-pe), and should be errors which are _always_ corrected when we see them
 
 See here: https://explosion.ai/blog/german-model#word-order for more info on the german dependency parsing model
+
+Concatenation could also add special <SRC> and <TRG> tokens to make explicit which language sequence follows
+  the intuition here is that, since the segmentation is learned jointly, we want to be explicit about which language
+  we are currently using
 
 #### Dev
 Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation

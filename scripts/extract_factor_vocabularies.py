@@ -1,10 +1,11 @@
 '''
-Parse the concatenated src+mt data with factors
+Parse the concatenated src+mt factored corpus data
 
-Note that
-
+Split out factors by the `factor_separator`, and get all tokens in the factor
+Add UNK and BOS/EOS tokens to match nematus behavior
 '''
 
+# WORKING HERE
 
 import os
 import codecs

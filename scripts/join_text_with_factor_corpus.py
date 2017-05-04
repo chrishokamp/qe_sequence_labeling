@@ -1,8 +1,5 @@
 """
 Join the tokens in parallel files (text, factor_corpus)
-
-TODO: Where the factor delimiter exists inside a token or factor, try to map it to something else(?)
-
 """
 
 import codecs
