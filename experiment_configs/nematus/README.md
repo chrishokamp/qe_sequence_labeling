@@ -201,32 +201,35 @@ Dev process (i.e. the job of `validate.sh`):
 Extract a concatenated source corpus with rich features (POS tags, head words, dependency relations)
 
 ```
+source activate spacy 
+QE_SEQ=~/projects/qe_sequence_labeling
+
 # 4M
 DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M
 # src
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
 # mt 
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
 
 # 500K
 DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K
 # src
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
 # mt 
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
 
 # APE internal
 DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
 # train
 # src
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.src -o $DATADIR/spacy_factor_corpus -l en -p train
 # mt 
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt -o $DATADIR/spacy_factor_corpus -l de -p train
 # dev
 # src
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.src -o $DATADIR/spacy_factor_corpus -l en -p dev 
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.src -o $DATADIR/spacy_factor_corpus -l en -p dev 
 # mt 
-python scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.mt -o $DATADIR/spacy_factor_corpus -l de -p dev 
+python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.mt -o $DATADIR/spacy_factor_corpus -l de -p dev 
 
 # APE test data
 
@@ -237,7 +240,6 @@ Learn BPE encoding for the text factor of Spacy extracted corpus
 INFO:__main__:Wrote new files: /media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus/train.en.tok and /media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus/train.en.factors
 ```
 # follow subword-nmt best practices here
-# NOTE: Remember that we need the version of 4M without rows removed for reference data
 
 SUBWORD=~/projects/subword_nmt
 NUM_OPERATIONS=40000
@@ -347,11 +349,33 @@ python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/dev.de.b
 
 ```
 
-TODO: output vocabularies for all factor tagsets using the mapped factor corpus
+Concatenate source and target factor corpora
+```
+SEQ_QE=~/projects/qe_sequence_labeling
+
+# APE Internal
+# DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_factor_corpus
+bash $SEQ_QE/experiment_configs/nematus/concat/de-en/concat_factor_corpora.sh
+
+```
+
+
+TODO: redo dictionary extraction for concatenated data
+TODO: concatenate data _before_ doing any BPE splitting, etc...
+TODO: concatenatenation can also add special <SRC> and <TRG> tokens to make explicit which language sequence follows
+TODO: the intuition here is that, since the segmentation is learned jointly, we want to be explicit about which language
+TODO: we are currently using
+
+NOTE: For the Spacy factored datasets, remember that we need the version of reference data without rows removed
 TODO: move *.orig *pe files to spacy corpus 500K and APE Internal dirs
-TODO: for german, only use token POS and Head POS as features, dependency parse tokens look weird
-TODO: see here: https://explosion.ai/blog/german-model#word-order for more info on the german dependency parsing model
-TODO: if `factor_separator` occurs in a surface form, or a factored tag, replace it with something else i.e. '_BAR_'
+
+
+TODO: output vocabularies for all factor tagsets using the mapped factor corpus
+TODO: remember that tagsets are across both languages for the concatenated models
+TODO: i.e. the tagset dict needs to include both EN and DE POS tags to work
+TODO: Concatenate first, then extract vocabularies
+TODO: The <JOIN> token also needs to be duplicated across factors
+
 
 
 
@@ -362,6 +386,7 @@ We also want to try:
 (2) constrained decoding with terminology extracted from in-domain data
     - the terms should be extracted from (mt-pe), and should be errors which are _always_ corrected when we see them
 
+See here: https://explosion.ai/blog/german-model#word-order for more info on the german dependency parsing model
 
 #### Dev
 Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation

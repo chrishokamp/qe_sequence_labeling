@@ -1,3 +1,11 @@
+'''
+Parse the concatenated src+mt data with factors
+
+Note that
+
+'''
+
+
 import os
 import codecs
 import logging
