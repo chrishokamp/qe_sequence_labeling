@@ -325,8 +325,6 @@ bash $SEQ_QE/experiment_configs/nematus/concat/de-en/concat_factor_corpora.sh
 
 Note: Text factor VOCAB EXTRACTION IS DONE IN THE CONCATENATION SCRIPT
 
-Working here: extract factor vocabularies -- could write to tmp file for each factor and use nematus script
-
 Map text and factor tokens back together
 ```
 SEQUENCE_QE=~/projects/qe_sequence_labeling
@@ -376,6 +374,93 @@ TODO: remember that tagsets are across both languages for the concatenated model
 TODO: i.e. the tagset dict needs to include both EN and DE POS tags to work
 TODO: Concatenate first, then extract vocabularies
 TODO: The <JOIN> token also needs to be duplicated across factors
+
+
+### Ensemble Decoding for APE
+Decode with a set of models, which may each have different inputs
+```
+export SRC_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/src-pe
+export MT_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/mt-pe
+export DEV_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+export GBS_DIR=/home/chris/projects/constrained_decoding
+
+src-pe + mt-pe
+python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.iter370000.npz $MT_MODEL_DIR/model.iter290000.npz \
+ -c $SRC_MODEL_DIR/model.iter370000.npz.json $MT_MODEL_DIR/model.iter290000.npz.json \
+ -i $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped > test.nematus.out
+
+
+export MT_WITH_SRC_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de/fine_tune/model
+
+# src-->pe + mt-->pe + mt-src-->pe
+python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.iter370000.npz $MT_MODEL_DIR/model.iter290000.npz $MT_WITH_SRC_MODEL_DIR/model.npz \
+ -c $SRC_MODEL_DIR/model.iter370000.npz.json $MT_MODEL_DIR/model.iter290000.npz.json $MT_WITH_SRC_MODEL_DIR/model.npz.json \
+ -i $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped $DEV_DATA_DIR/dev.mt.factor_corpus > test.src_mt_ens.nematus.out
+
+```
+
+## Tuning
+
+#### Optimize Ensemble Decoding Weights with MERT
+
+Get the paths to the best N models in a directory
+```
+CONSTRAINED_DECODING=~/projects/constrained_decoding
+MODEL_BASEDIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models
+
+# src-mt_concat 
+EXP_DIR=$MODEL_BASEDIR/en-de_concat_src_mt/fine_tune/min_risk/model
+python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
+
+# mt-src_aligned
+EXP_DIR=$MODEL_BASEDIR/en-de_mt_aligned/fine_tune/model
+python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
+
+
+
+# src-mt_concat factors # WORKING -- NOT READY YET -- may be because we tuned on full 500K + WMT instead of just WMT as in baseline concat src+mt
+EXP_DIR=$MODEL_BASEDIR/en-de_concat_factors/fine_tune/min_risk/model
+python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
+
+```
+
+
+
+
+
+SRC-MT CONCAT
+BEST MODELS
+
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model/model.iter52000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model/model.iter30000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model/model.iter58000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model/model.iter50000.npz
+
+BEST SCORES
+
+69.44
+69.37
+69.34
+69.32
+
+
+# src-mt_concat-factors
+EXP_DIR=/extra/chokamp/nmt_data/ko-en/experiments/terminology/term_replacement/model
+
+python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
+```
+
+
+
+```
+
+
+
+```
+
+```
+
+
 
 
 
