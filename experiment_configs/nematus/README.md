@@ -309,8 +309,7 @@ python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DAT
 python $SEQUENCE_QE/scripts/map_factor_corpus_to_subword_segmentation.py -t $DATADIR/dev.de.bpe -f $DATADIR/dev.de.factors
 ```
 
-# WORKING HERE
-# TODO: extract all factor vocabularies after concatenation but before rejoining with text corpora
+# extract all factor vocabularies after concatenation but before rejoining with text corpora
 Concatenate all source and target text and factor corpora
 ```
 SEQ_QE=~/projects/qe_sequence_labeling
@@ -323,7 +322,14 @@ bash $SEQ_QE/experiment_configs/nematus/concat/de-en/concat_text_factors.sh
 bash $SEQ_QE/experiment_configs/nematus/concat/de-en/concat_factor_corpora.sh
 ```
 
-Note: Text factor VOCAB EXTRACTION IS DONE IN THE CONCATENATION SCRIPT
+
+# extract factor vocabularies -- could write to tmp file for each factor and use nematus script
+```
+SEQ_QE=~/projects/qe_sequence_labeling
+DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus
+
+python $SEQ_QE/scripts/extract_factor_vocabularies.py -i $DATADIR/train.src-mt.concatenated.factors.bpe -o $DATADIR -n 3
+```
 
 Map text and factor tokens back together
 ```
@@ -331,49 +337,24 @@ SEQUENCE_QE=~/projects/qe_sequence_labeling
 
 # 4M
 DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/4M/spacy_factor_corpus
-# src
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors.bpe
-# mt
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors.bpe
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.src-mt.concatenated.bpe -f $DATADIR/train.src-mt.concatenated.factors.bpe
 
 # 500K
 DATADIR=/media/1tb_drive/Dropbox/data/qe/amunmt_artificial_ape_2016/data/500K/spacy_factor_corpus
-# src
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors.bpe
-# mt
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors.bpe
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.src-mt.concatenated.bpe -f $DATADIR/train.src-mt.concatenated.factors.bpe
 
 # APE Internal
 DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_factor_corpus
 
 # Train
-# src
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.en.bpe -f $DATADIR/train.en.factors.bpe
-# mt
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.de.bpe -f $DATADIR/train.de.factors.bpe
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/train.src-mt.concatenated.bpe -f $DATADIR/train.src-mt.concatenated.factors.bpe
 
 # Dev
-# src
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/dev.en.bpe -f $DATADIR/dev.en.factors.bpe
-# mt
-python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/dev.de.bpe -f $DATADIR/dev.de.factors.bpe
-
-
+python $SEQUENCE_QE/scripts/join_text_with_factor_corpus.py -t $DATADIR/dev.src-mt.concatenated.bpe -f $DATADIR/dev.src-mt.concatenated.factors.bpe
 ```
 
-
-TODO: redo dictionary extraction for concatenated data
-TODO: concatenate data _before_ doing any BPE splitting, etc...
-
 NOTE: For the Spacy factored datasets, remember that we need the version of reference data without rows removed
-TODO: move *.orig *pe files to spacy corpus 500K and APE Internal dirs
-
-
-TODO: output vocabularies for all factor tagsets using the mapped factor corpus
-TODO: remember that tagsets are across both languages for the concatenated models
-TODO: i.e. the tagset dict needs to include both EN and DE POS tags to work
-TODO: Concatenate first, then extract vocabularies
-TODO: The <JOIN> token also needs to be duplicated across factors
+Note: we move *.orig *pe files to spacy corpus 500K and APE Internal dirs
 
 
 ### Ensemble Decoding for APE
@@ -492,10 +473,6 @@ HYPS=
 ```
 
 Average N-models, and output a new model
-model.iter52000.npz
-model.iter30000.npz
-model.iter58000.npz
-model.iter50000.npz
 
 ```
 GBS=~/projects/constrained_decoding
@@ -506,9 +483,6 @@ python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter52000.npz 
 ```
 
 
-
-
-
 MERT N-best output to 1-best list
 ```
 cat run4.out | perl -ne 'chomp; @t = split(/\|\|\|/, $_); print "$t[1]\n"' | sed -n '1~10p' > run4.1best.out
@@ -516,7 +490,7 @@ cat run4.out | perl -ne 'chomp; @t = split(/\|\|\|/, $_); print "$t[1]\n"' | sed
 ```
 
 
-
+=======
 ### Notes
 
 We also want to try:
@@ -530,17 +504,11 @@ Concatenation could also add special <SRC> and <TRG> tokens to make explicit whi
   the intuition here is that, since the segmentation is learned jointly, we want to be explicit about which language
   we are currently using
 
+Remember that tagsets are across both languages for the concatenated models. The <JOIN> token also needs to be duplicated across factors
+
+Note: Text factor VOCAB EXTRACTION IS DONE IN THE CONCATENATION SCRIPT
+
 #### Dev
 Note we use the QE data as development data -- this will allow us to also compute TER, and score for both QE and APE during validation
-
-
-
-
-
-
-
-
-
-
 
 
