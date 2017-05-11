@@ -412,21 +412,15 @@ MODEL_BASEDIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models
 EXP_DIR=$MODEL_BASEDIR/en-de_concat_src_mt/fine_tune/min_risk/model
 python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
 
-# mt-src_aligned
+# mt-src_aligned # WORKING -- NOT READY YET -- redo fine tuning for some iters
 EXP_DIR=$MODEL_BASEDIR/en-de_mt_aligned/fine_tune/model
 python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
-
-
 
 # src-mt_concat factors # WORKING -- NOT READY YET -- may be because we tuned on full 500K + WMT instead of just WMT as in baseline concat src+mt
 EXP_DIR=$MODEL_BASEDIR/en-de_concat_factors/fine_tune/min_risk/model
 python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
 
 ```
-
-
-
-
 
 SRC-MT CONCAT
 BEST MODELS
@@ -442,6 +436,29 @@ BEST SCORES
 69.37
 69.34
 69.32
+
+MT-SRC ALIGNED
+--------------
+
+
+
+SRC-MT CONCAT FACTORS
+----------------------
+BEST MODELS
+
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter23000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter15000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter22000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter8000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter1000.npz
+
+BEST SCORES
+
+69.29
+69.27
+69.26
+69.23
+69.23
 
 
 # src-mt_concat-factors
@@ -462,6 +479,41 @@ python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k
 
 
 
+### Evaluation
+
+Evaluate an APE system on WMT 16 dev and WMT 16 test for each of {APE,QE} -- this requires four translation passes 
+If the model is an ensemble, weights should be different between APE and QE runs
+```
+# set environment vars
+
+HYPS=
+
+
+```
+
+Average N-models, and output a new model
+model.iter52000.npz
+model.iter30000.npz
+model.iter58000.npz
+model.iter50000.npz
+
+```
+GBS=~/projects/constrained_decoding
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model
+
+python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter52000.npz $MODEL_DIR/model.iter30000.npz $MODEL_DIR/model.iter58000.npz $MODEL_DIR/model.iter50000.npz -o $MODEL_DIR/model.4-best.averaged.npz
+
+```
+
+
+
+
+
+MERT N-best output to 1-best list
+```
+cat run4.out | perl -ne 'chomp; @t = split(/\|\|\|/, $_); print "$t[1]\n"' | sed -n '1~10p' > run4.1best.out
+
+```
 
 
 
