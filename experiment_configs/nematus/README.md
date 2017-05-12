@@ -497,10 +497,6 @@ python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter52000.npz 
 
 ```
 
-### WORKING: single model evaluation results -- go through the entire flow, then script the whole thing
-Planning
-(1) get output of model from input `translate_nematus.py`
-
 SRC-PE
 ```
 # WORKING script to translate with model args -- i.e. eval setup in script?
@@ -534,7 +530,7 @@ mkdir -p $OUTPUT_DIR
 # translate
 # Single SRC model
 SINGLE_OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
-python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $OUTPUT_FILE
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
 
 # Ensemble of 4 SRC models
 ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
@@ -544,14 +540,49 @@ python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $SINGLE_OUTPUT_FILE
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
 
-# from optimize.pl
-# execute("python $GBS_DIR/scripts/translate_nematus.py -m $CONCAT_MODEL_DIR/model.iter52000.npz $CONCAT_MODEL_DIR/model.iter30000.npz $CONCAT_FACTORS_MODEL_DIR/model.iter23000.npz $CONCAT_FACTORS_MODEL_DIR/model.iter15000.npz $SRC_MODEL_DIR/model.iter370000.npz $SRC_MODEL_DIR/model.iter360000.npz $MT_MODEL_DIR/model.iter290000.npz $MT_MODEL_DIR/model.iter280000.npz -c $CONCAT_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.iter370000.npz.json $SRC_MODEL_DIR/model.iter360000.npz.json $MT_MODEL_DIR/model.iter290000.npz.json $MT_MODEL_DIR/model.iter280000.npz.json -i $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped $DEV_DATA_DIR/dev.mt.prepped --nbest $NBEST --beam_size $BEAM_SIZE --length_factor $LENGTH_FACTOR --load_weights $WORK/run$i.dense --mert_nbest | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $WORK/run$i.out");
-
 ```
 
-# WORKING -- preprocess WMT 16 test
-# WORKING -- preprocess WMT 17 test
-# WORKING -- for all model types
+MT-PE
+
+```
+GBS=~/projects/constrained_decoding
+QE_SEQ=~/projects/qe_sequence_labeling/
+MOSES_SCRIPTS=~/projects/mosesdecoder/scripts
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/mt-pe
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+
+# All models averaged
+MODEL_0=$MODEL_DIR/model.4-best.averaged.npz
+
+# Note there will be multiple models for ensembles
+MODEL_1=$MODEL_DIR/model.iter260000.npz
+MODEL_2=$MODEL_DIR/model.iter270000.npz
+MODEL_3=$MODEL_DIR/model.iter280000.npz
+MODEL_4=$MODEL_DIR/model.iter290000.npz
+
+INPUT=$DATA_DIR/dev.mt.prepped
+MT=$DATA_DIR/dev.mt
+REF=$DATA_DIR/dev.pe
+TAGS=$DATA_DIR/dev.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/mt-pe
+mkdir -p $OUTPUT_DIR
+
+# translate
+# Single model
+# TODO: waiting for optimal BEAM_SIZE arg
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+
+# Ensemble of 4 models
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 -c $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json -i $INPUT $INPUT $INPUT $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $SINGLE_OUTPUT_FILE
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
+
+```
 
 
 MERT N-best output to 1-best list -- for sanity evaluation of tuning passes
