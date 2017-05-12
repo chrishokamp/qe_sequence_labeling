@@ -382,6 +382,9 @@ python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.iter370000.
 
 ## Tuning
 
+# WORKING: note that we _know_ which model is the best from each of the runs -- check perf with i.e. averaging `best_model` 
+# WORKING: from each of the run types
+
 #### Optimize Ensemble Decoding Weights with MERT
 
 Get the paths to the best N models in a directory
@@ -393,11 +396,11 @@ MODEL_BASEDIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models
 EXP_DIR=$MODEL_BASEDIR/en-de_concat_src_mt/fine_tune/min_risk/model
 python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
 
-# mt-src_aligned # WORKING -- NOT READY YET -- redo fine tuning for some iters
+# mt-src_aligned 
 EXP_DIR=$MODEL_BASEDIR/en-de_mt_aligned/fine_tune/model
 python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
 
-# src-mt_concat factors # WORKING -- NOT READY YET -- may be because we tuned on full 500K + WMT instead of just WMT as in baseline concat src+mt
+# src-mt_concat factors 
 EXP_DIR=$MODEL_BASEDIR/en-de_concat_factors/fine_tune/min_risk/model
 python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
 
@@ -420,43 +423,43 @@ BEST SCORES
 
 MT-SRC ALIGNED
 --------------
-
-
-
-SRC-MT CONCAT FACTORS
-----------------------
 BEST MODELS
 
-/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter23000.npz
-/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter15000.npz
-/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter22000.npz
-/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter8000.npz
-/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter1000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model/model.iter42000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model/model.iter32000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model/model.iter3000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model/model.iter48000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model/model.iter27000.npz
 
 BEST SCORES
 
-69.29
-69.27
-69.26
-69.23
-69.23
+67.54
+67.51
+67.49
+67.47
+67.44
+
+SRC-MT CONCAT FACTORS
+----------------------
+
+BEST MODELS
+
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter24000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter2000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter78000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter79000.npz
+/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model/model.iter69000.npz
+
+BEST SCORES
+
+69.76
+69.76
+69.68
+69.65
+69.65
 
 
-# src-mt_concat-factors
-EXP_DIR=/extra/chokamp/nmt_data/ko-en/experiments/terminology/term_replacement/model
-
-python $CONSTRAINED_DECODING/scripts/get_best_n_nematus_models.py -m $EXP_DIR -k 5
-```
-
-
-
-```
-
-
-
-```
-
-```
+# WORKING -- final ensemble prep flowchart (single, ensemble, tuned ensemble) x (ape,qe)
 
 
 
@@ -473,14 +476,126 @@ HYPS=
 ```
 
 Average N-models, and output a new model
-
 ```
 GBS=~/projects/constrained_decoding
-MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model
 
+# src-pe
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/src-pe
+python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter340000.npz $MODEL_DIR/model.iter350000.npz $MODEL_DIR/model.iter360000.npz $MODEL_DIR/model.iter370000.npz -o $MODEL_DIR/model.4-best.averaged.npz
+
+# mt-pe
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/mt-pe
+python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter260000.npz $MODEL_DIR/model.iter270000.npz $MODEL_DIR/model.iter280000.npz $MODEL_DIR/model.iter290000.npz -o $MODEL_DIR/model.4-best.averaged.npz
+
+# mt-src_aligned
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model
+python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter42000.npz $MODEL_DIR/model.iter32000.npz $MODEL_DIR/model.iter3000.npz $MODEL_DIR/model.iter48000.npz -o $MODEL_DIR/model.4-best.averaged.npz
+
+# concat_src-mt_factors
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model
+python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter24000.npz $MODEL_DIR/model.iter2000.npz $MODEL_DIR/model.iter78000.npz $MODEL_DIR/model.iter79000.npz -o $MODEL_DIR/model.4-best.averaged.npz
+
+# concat_src-mt
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model
 python $GBS/scripts/average_nematus_models.py -m $MODEL_DIR/model.iter52000.npz $MODEL_DIR/model.iter30000.npz $MODEL_DIR/model.iter58000.npz $MODEL_DIR/model.iter50000.npz -o $MODEL_DIR/model.4-best.averaged.npz
 
 ```
+
+### WORKING: single model evaluation results -- go through the entire flow, then script the whole thing
+Planning
+(1) get output of model from input `translate_nematus.py`
+
+SRC-PE
+```
+GBS=~/projects/constrained_decoding
+MOSES_SCRIPTS=~/projects/mosesdecoder/scripts
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/src-pe
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+
+# All models averaged
+MODEL_0=$MODEL_DIR/model.4-best.averaged.npz
+
+# Note there will be multiple models for ensembles
+MODEL_1=$MODEL_DIR/model.iter340000.npz
+MODEL_2=$MODEL_DIR/model.iter350000.npz
+MODEL_3=$MODEL_DIR/model.iter360000.npz
+MODEL_4=$MODEL_DIR/model.iter370000.npz
+
+# Note there will be weights for tuned ensembles
+# TODO: is this dev from QE or APE -- this is important for test output 
+# TODO: the difference between QE and APE data is probably only important for test outputs, not for tuning/finding best model
+INPUT=$DATA_DIR/dev.src.prepped
+MT=$DATA_DIR/dev.mt
+REF=$DATA_DIR/dev.pe
+TAGS=$DATA_DIR/dev.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/src-pe
+
+mkdir -p $OUTPUT_DIR
+
+# translate
+# Single SRC model
+OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $OUTPUT_FILE
+# Ensemble of 4 SRC models
+OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 -c $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json -i $INPUT $INPUT $INPUT $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $OUTPUT_FILE
+
+# TODO: split scripts into translate/evaluate here
+
+# BLEU Score
+BLEU=`$MOSES_SCRIPTS/generic/multi-bleu.perl $REF < $OUTPUT_FILE | cut -f 3 -d ' ' | cut -f 1 -d ','`
+echo "BLEU = $BLEU"
+
+DROPBOX=/media/1tb_drive/Dropbox
+TERCOM=$DROPBOX/data/qe/sw/tercom-0.7.25
+# note we use the APE hypothesis as the pseudo-ref
+SRC_LANG=en
+TRG_LANG=de
+TMP_DIR=dev_ter_tmp
+mkdir -p $TMP_DIR
+
+# TODO: add official QE evaluation script?
+QE_SEQ=~/projects/qe_sequence_labeling/
+TIMESTAMP=`date +"%Y-%m-%d_%H-%M-%S"`
+python $QE_SEQ/scripts/qe_labels_from_ter_alignment.py --hyps $MT --refs $OUTPUT_FILE --output $TMP_DIR --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM > /dev/null 2>&1
+
+# now compute F1 product from two files
+python $QE_SEQ/scripts/qe_metrics_from_files.py --hyps $TMP_DIR/${SRC_LANG}-${TRG_LANG}.tercom.out.tags --gold $TAGS --output $TMP_DIR/qe_dev_report_${TIMESTAMP} > /dev/null 2>&1
+cat $TMP_DIR/qe_dev_report_${TIMESTAMP}.json
+
+# now run WMT APE evaluation script
+# evaluate APE
+echo "Running WMT 2017 APE evaluation"
+bash $QE_SEQ/scripts/wmt_ape_evaluation/Evaluation_Script/runTER.sh -h $OUTPUT_FILE -r $REF -s $TIMESTAMP -o $TMP_DIR > $TMP_DIR/ape_ter_output
+cat $TMP_DIR/ape_ter_output | grep 'TER'
+
+
+
+# TODO remove tmp_dir
+
+
+
+# TODO: do we take 2 passes over the data due to the small discrepancy between APE and QE inputs?
+# evaluate QE
+
+
+
+# from optimize.pl
+# execute("python $GBS_DIR/scripts/translate_nematus.py -m $CONCAT_MODEL_DIR/model.iter52000.npz $CONCAT_MODEL_DIR/model.iter30000.npz $CONCAT_FACTORS_MODEL_DIR/model.iter23000.npz $CONCAT_FACTORS_MODEL_DIR/model.iter15000.npz $SRC_MODEL_DIR/model.iter370000.npz $SRC_MODEL_DIR/model.iter360000.npz $MT_MODEL_DIR/model.iter290000.npz $MT_MODEL_DIR/model.iter280000.npz -c $CONCAT_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.iter370000.npz.json $SRC_MODEL_DIR/model.iter360000.npz.json $MT_MODEL_DIR/model.iter290000.npz.json $MT_MODEL_DIR/model.iter280000.npz.json -i $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped $DEV_DATA_DIR/dev.mt.prepped --nbest $NBEST --beam_size $BEAM_SIZE --length_factor $LENGTH_FACTOR --load_weights $WORK/run$i.dense --mert_nbest | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $WORK/run$i.out");
+
+```
+
+
+
+
+
+### WORKING: 4-model ensemble of each 4-best model for each system type
+```
+
+
+```
+
 
 
 MERT N-best output to 1-best list
