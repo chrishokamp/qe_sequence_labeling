@@ -24,8 +24,6 @@ APE_DATADIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017/spacy_fact
 
 NUM_FACTORS=3
 
-# WORKING: duplicate the join token across all factors
-# WORKING: remember that factor corpora also need to be re-joined after mapping segmentation (i.e. join text+factors)
 function join_by { local IFS="$1"; shift; echo "$*"; }
 
 concat_token='@BREAK@'

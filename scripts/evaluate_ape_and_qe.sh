@@ -75,4 +75,7 @@ printf "\nAPE TER\n"
 bash $QE_SEQ/scripts/wmt_ape_evaluation/Evaluation_Script/runTER.sh -h $OUTPUT_FILE -r $REF -s $TIMESTAMP -o $TMP_DIR > $TMP_DIR/ape_ter_output
 cat $TMP_DIR/ape_ter_output | grep 'TER'
 
+# Cleanup
 rm -rf $TMP_DIR
+rm *postprocessed*ter
+rm *tercom*

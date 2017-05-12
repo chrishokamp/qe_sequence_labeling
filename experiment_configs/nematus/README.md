@@ -230,10 +230,6 @@ python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/train.mt
 python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.src -o $DATADIR/spacy_factor_corpus -l en -p dev 
 # mt 
 python $QE_SEQ/scripts/generate_factor_corpus_with_spacy.py -i $DATADIR/dev.mt -o $DATADIR/spacy_factor_corpus -l de -p dev 
-
-# APE test data
-
-# QE test data
 ```
 
 Learn joint BPE encoding for the text factor of the concatenated Spacy extracted corpus
@@ -507,7 +503,9 @@ Planning
 
 SRC-PE
 ```
+# WORKING script to translate with model args -- i.e. eval setup in script?
 GBS=~/projects/constrained_decoding
+QE_SEQ=~/projects/qe_sequence_labeling/
 MOSES_SCRIPTS=~/projects/mosesdecoder/scripts
 MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/src-pe
 DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
@@ -535,70 +533,28 @@ mkdir -p $OUTPUT_DIR
 
 # translate
 # Single SRC model
-OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
 python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $OUTPUT_FILE
+
 # Ensemble of 4 SRC models
-OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
-python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 -c $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json -i $INPUT $INPUT $INPUT $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $OUTPUT_FILE
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 -c $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json -i $INPUT $INPUT $INPUT $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
 
-# TODO: split scripts into translate/evaluate here
-
-# BLEU Score
-BLEU=`$MOSES_SCRIPTS/generic/multi-bleu.perl $REF < $OUTPUT_FILE | cut -f 3 -d ' ' | cut -f 1 -d ','`
-echo "BLEU = $BLEU"
-
-DROPBOX=/media/1tb_drive/Dropbox
-TERCOM=$DROPBOX/data/qe/sw/tercom-0.7.25
-# note we use the APE hypothesis as the pseudo-ref
-SRC_LANG=en
-TRG_LANG=de
-TMP_DIR=dev_ter_tmp
-mkdir -p $TMP_DIR
-
-# TODO: add official QE evaluation script?
-QE_SEQ=~/projects/qe_sequence_labeling/
-TIMESTAMP=`date +"%Y-%m-%d_%H-%M-%S"`
-python $QE_SEQ/scripts/qe_labels_from_ter_alignment.py --hyps $MT --refs $OUTPUT_FILE --output $TMP_DIR --src_lang $SRC_LANG --trg_lang $TRG_LANG --tercom $TERCOM > /dev/null 2>&1
-
-# now compute F1 product from two files
-python $QE_SEQ/scripts/qe_metrics_from_files.py --hyps $TMP_DIR/${SRC_LANG}-${TRG_LANG}.tercom.out.tags --gold $TAGS --output $TMP_DIR/qe_dev_report_${TIMESTAMP} > /dev/null 2>&1
-cat $TMP_DIR/qe_dev_report_${TIMESTAMP}.json
-
-# now run WMT APE evaluation script
-# evaluate APE
-echo "Running WMT 2017 APE evaluation"
-bash $QE_SEQ/scripts/wmt_ape_evaluation/Evaluation_Script/runTER.sh -h $OUTPUT_FILE -r $REF -s $TIMESTAMP -o $TMP_DIR > $TMP_DIR/ape_ter_output
-cat $TMP_DIR/ape_ter_output | grep 'TER'
-
-
-
-# TODO remove tmp_dir
-
-
-
-# TODO: do we take 2 passes over the data due to the small discrepancy between APE and QE inputs?
-# evaluate QE
-
-
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $SINGLE_OUTPUT_FILE
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
 
 # from optimize.pl
 # execute("python $GBS_DIR/scripts/translate_nematus.py -m $CONCAT_MODEL_DIR/model.iter52000.npz $CONCAT_MODEL_DIR/model.iter30000.npz $CONCAT_FACTORS_MODEL_DIR/model.iter23000.npz $CONCAT_FACTORS_MODEL_DIR/model.iter15000.npz $SRC_MODEL_DIR/model.iter370000.npz $SRC_MODEL_DIR/model.iter360000.npz $MT_MODEL_DIR/model.iter290000.npz $MT_MODEL_DIR/model.iter280000.npz -c $CONCAT_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.iter370000.npz.json $SRC_MODEL_DIR/model.iter360000.npz.json $MT_MODEL_DIR/model.iter290000.npz.json $MT_MODEL_DIR/model.iter280000.npz.json -i $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped $DEV_DATA_DIR/dev.mt.prepped --nbest $NBEST --beam_size $BEAM_SIZE --length_factor $LENGTH_FACTOR --load_weights $WORK/run$i.dense --mert_nbest | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $WORK/run$i.out");
 
 ```
 
+# WORKING -- preprocess WMT 16 test
+# WORKING -- preprocess WMT 17 test
+# WORKING -- for all model types
 
 
-
-
-### WORKING: 4-model ensemble of each 4-best model for each system type
-```
-
-
-```
-
-
-
-MERT N-best output to 1-best list
+MERT N-best output to 1-best list -- for sanity evaluation of tuning passes
 ```
 cat run4.out | perl -ne 'chomp; @t = split(/\|\|\|/, $_); print "$t[1]\n"' | sed -n '1~10p' > run4.1best.out
 
