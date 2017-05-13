@@ -24,8 +24,6 @@ my $DEV_DATA_DIR = "/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017";
 
 my $DEV_REF = "$DEV_DATA_DIR/dev.pe";
 
-# Note filename must be run1.dense
-my $START_WEIGHTS = "/home/chris/projects/qe_sequence_labeling/experiment_configs/nematus/optimize/en-de/src-mt-mt+src-mt+src_factor/run1.dense";
 
 my $time = time();
 my $WORK = "tuning.$time";
@@ -56,7 +54,10 @@ my $CONFIG = "--sctype $SCORER";
 $WORK = File::Spec->rel2abs($WORK);
 
 execute("mkdir -p $WORK");
+
 # start with a default run1.dense (don't call the `amunmt show weights`)
+# Note filename must be run1.dense
+my $START_WEIGHTS = "/home/chris/projects/qe_sequence_labeling/experiment_configs/nematus/optimize/en-de/avg_all/run1.dense";
 execute("cp $START_WEIGHTS $WORK");
 
 # uses default run1.dense to create run1.initopt
@@ -65,7 +66,7 @@ dense2init("$WORK/run1.dense", "$WORK/run1.initopt");
 execute("rm -rf $WORK/progress.txt");
 for my $i (1 .. $MAX_IT) {
     unless(-s "$WORK/run$i.out") {
-        execute("python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $MT_MODEL_DIR/model.4-best.averaged.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SOURCE_MODEL_DIR/model.npz.json $MT_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped $DEV_DATA_DIR/dev.mt_source_aligned $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus --nbest $NBEST --beam_size $BEAM_SIZE --length_factor $LENGTH_FACTOR --load_weights $WORK/run$i.dense --mert_nbest | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $WORK/run$i.out");
+        execute("python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $MT_MODEL_DIR/model.4-best.averaged.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $MT_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped $DEV_DATA_DIR/dev.mt.factor_corpus $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus --nbest $NBEST --beam_size $BEAM_SIZE --length_factor $LENGTH_FACTOR --load_weights $WORK/run$i.dense --mert_nbest | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $WORK/run$i.out");
     }
     execute("$EVAL $CONFIG --reference $DEV_REF -n $WORK/run$i.out | tee -a $WORK/progress.txt");
 

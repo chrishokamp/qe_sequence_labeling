@@ -28,9 +28,23 @@ echo "mode = ${mode}"
 
 MOSES_SCRIPTS=~/projects/mosesdecoder/scripts
 
-# WORKING: arg for dev|test
 if [ ${mode} == 'dev' ]; then
     DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+
+    MT=$DATA_DIR/${mode}.mt
+    QE_REF=$DATA_DIR/${mode}.pe
+    TAGS=$DATA_DIR/${mode}.tags
+    APE_REF=$DATA_DIR/${mode}.pe
+
+elif [ ${mode} == 'test' ]; then
+    APE_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/wmt_2016/test
+    QE_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
+
+    MT=$QE_DATA_DIR/${mode}.mt
+    QE_REF=$QE_DATA_DIR/${mode}.pe
+    TAGS=$QE_DATA_DIR/${mode}.tags
+    APE_REF=$APE_DATA_DIR/${mode}.pe
+
 else
     die "Unknown mode: $mode"
 fi
@@ -40,13 +54,10 @@ fi
 # TODO: the difference between QE and APE data is probably only important for test outputs, not for tuning/finding best model
 
 OUTPUT_FILE=${hyp}
-MT=$DATA_DIR/dev.mt
-REF=$DATA_DIR/dev.pe
-TAGS=$DATA_DIR/dev.tags
 
 # Take translation output and evaluate against WMT 2016 dev or test for APE and QE metrics
 # BLEU Score
-BLEU=`$MOSES_SCRIPTS/generic/multi-bleu.perl $REF < $OUTPUT_FILE | cut -f 3 -d ' ' | cut -f 1 -d ','`
+BLEU=`$MOSES_SCRIPTS/generic/multi-bleu.perl $APE_REF < $OUTPUT_FILE | cut -f 3 -d ' ' | cut -f 1 -d ','`
 echo "BLEU = $BLEU"
 
 DROPBOX=/media/1tb_drive/Dropbox
@@ -72,7 +83,7 @@ cat $TMP_DIR/qe_dev_report_${TIMESTAMP}.json
 # now run WMT APE evaluation script
 # evaluate APE
 printf "\nAPE TER\n"
-bash $QE_SEQ/scripts/wmt_ape_evaluation/Evaluation_Script/runTER.sh -h $OUTPUT_FILE -r $REF -s $TIMESTAMP -o $TMP_DIR > $TMP_DIR/ape_ter_output
+bash $QE_SEQ/scripts/wmt_ape_evaluation/Evaluation_Script/runTER.sh -h $OUTPUT_FILE -r $APE_REF -s $TIMESTAMP -o $TMP_DIR > $TMP_DIR/ape_ter_output
 cat $TMP_DIR/ape_ter_output | grep 'TER'
 
 # Cleanup
