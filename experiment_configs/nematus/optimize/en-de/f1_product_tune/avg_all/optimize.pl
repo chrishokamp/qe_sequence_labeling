@@ -60,7 +60,7 @@ execute("mkdir -p $WORK");
 # start with a default run1.dense (don't call the `amunmt show weights`)
 # Note filename must be run1.dense
 # Note this copies the weights specific to this combination of models
-my $START_WEIGHTS = "/home/chris/projects/qe_sequence_labeling/experiment_configs/nematus/optimize/en-de/src-mt-mt+src/run1.dense";
+my $START_WEIGHTS = "/home/chris/projects/qe_sequence_labeling/experiment_configs/nematus/optimize/en-de/f1_product_tune/avg_all/run1.dense";
 execute("cp $START_WEIGHTS $WORK");
 
 # uses default run1.dense to create run1.initopt
