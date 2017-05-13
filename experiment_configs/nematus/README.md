@@ -643,7 +643,7 @@ bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $BEST_OUTPUT_FILE
 
 ```
 
-AVG_ALL Ensemble
+AVG_ALL Baseline Ensemble
 ```
 GBS=~/projects/constrained_decoding
 QE_SEQ=~/projects/qe_sequence_labeling/
@@ -683,9 +683,55 @@ ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/test.ensemble.output.postprocessed
 python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $MT_MODEL_DIR/model.4-best.averaged.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $MT_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/test.src.prepped $DATA_DIR/test.mt.prepped $DATA_DIR/test.mt.factor_corpus $DATA_DIR/test.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/test.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
 
 # Evaluate
-bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $ENSEMBLE_OUTPUT_FILE
 ```
 
+AVG_ALL Tuned Ensemble
+```
+GBS=~/projects/constrained_decoding
+QE_SEQ=~/projects/qe_sequence_labeling/
+MOSES_SCRIPTS=~/projects/mosesdecoder/scripts
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/mt-pe
+
+SRC_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/src-pe
+MT_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/amunmt_ape_pretrained/system/models/mt-pe
+MT_ALIGN_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model
+CONCAT_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model
+CONCAT_FACTORS_MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_factors/fine_tune/min_risk/model
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/avg_all_ensemble
+mkdir -p $OUTPUT_DIR
+
+# WORKING: get tuning weights
+OPTIMIZATION_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/mert_optimization/avg_all/tuning.1494628152
+WEIGHTS=$OPTIMIZATION_DIR/run10.dense
+
+# DEV
+DEV_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+MT=$DEV_DATA_DIR/dev.mt
+REF=$DEV_DATA_DIR/dev.pe
+TAGS=$DEV_DATA_DIR/dev.tags
+
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev.ensemble.output.postprocessed.tuned
+
+python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $MT_MODEL_DIR/model.4-best.averaged.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $MT_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.prepped $DEV_DATA_DIR/dev.mt.factor_corpus $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
+
+# Test
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
+MT=$DATA_DIR/test.mt
+REF=$DATA_DIR/test.pe
+TAGS=$DATA_DIR/test.tags
+
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/test.ensemble.output.postprocessed.tuned
+
+python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $MT_MODEL_DIR/model.4-best.averaged.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $MT_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/test.src.prepped $DATA_DIR/test.mt.prepped $DATA_DIR/test.mt.factor_corpus $DATA_DIR/test.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/test.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $ENSEMBLE_OUTPUT_FILE
+```
 
 
 
