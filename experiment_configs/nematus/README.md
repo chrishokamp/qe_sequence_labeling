@@ -463,13 +463,6 @@ BEST SCORES
 
 Evaluate an APE system on WMT 16 dev and WMT 16 test for each of {APE,QE} -- this requires four translation passes 
 If the model is an ensemble, weights should be different between APE and QE runs
-```
-# set environment vars
-
-HYPS=
-
-
-```
 
 Average N-models, and output a new model
 ```
@@ -515,9 +508,6 @@ MODEL_2=$MODEL_DIR/model.iter350000.npz
 MODEL_3=$MODEL_DIR/model.iter360000.npz
 MODEL_4=$MODEL_DIR/model.iter370000.npz
 
-# Note there will be weights for tuned ensembles
-# TODO: is this dev from QE or APE -- this is important for test output 
-# TODO: the difference between QE and APE data is probably only important for test outputs, not for tuning/finding best model
 INPUT=$DATA_DIR/dev.src.prepped
 MT=$DATA_DIR/dev.mt
 REF=$DATA_DIR/dev.pe
@@ -530,7 +520,7 @@ mkdir -p $OUTPUT_DIR
 # translate
 # Single SRC model
 SINGLE_OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
-python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 2.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
 
 # Ensemble of 4 SRC models
 ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
@@ -540,10 +530,26 @@ python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $SINGLE_OUTPUT_FILE
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
 
+# Test
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
+INPUT=$DATA_DIR/test.src.prepped
+MT=$DATA_DIR/test.mt
+REF=$DATA_DIR/test.pe
+TAGS=$DATA_DIR/test.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/src-pe
+
+# translate
+# Single SRC model
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/test.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 2.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $SINGLE_OUTPUT_FILE
+
 ```
 
 MT-PE
-
 ```
 GBS=~/projects/constrained_decoding
 QE_SEQ=~/projects/qe_sequence_labeling/
@@ -571,7 +577,7 @@ mkdir -p $OUTPUT_DIR
 # translate
 # Single model
 SINGLE_OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
-python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 2.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
 
 # Ensemble of 4 models
 ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
@@ -581,8 +587,137 @@ python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $SINGLE_OUTPUT_FILE
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
 
+# Test
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
+INPUT=$DATA_DIR/test.mt.prepped
+MT=$DATA_DIR/test.mt
+REF=$DATA_DIR/test.pe
+TAGS=$DATA_DIR/test.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/mt-pe
+
+# translate
+# Single SRC model
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/test.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 2.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $SINGLE_OUTPUT_FILE
 ```
 
+MT-aligned --> PE
+```
+GBS=~/projects/constrained_decoding
+QE_SEQ=~/projects/qe_sequence_labeling/
+MOSES_SCRIPTS=~/projects/mosesdecoder/scripts
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_mt_aligned/fine_tune/model
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+
+# All models averaged
+MODEL_0=$MODEL_DIR/model.4-best.averaged.npz
+
+# Note there will be multiple models for ensembles
+MODEL_1=$MODEL_DIR/model.iter42000.npz
+MODEL_2=$MODEL_DIR/model.iter32000.npz
+MODEL_3=$MODEL_DIR/model.iter3000.npz
+MODEL_4=$MODEL_DIR/model.iter48000.npz
+
+INPUT=$DATA_DIR/dev.mt.factor_corpus
+MT=$DATA_DIR/dev.mt
+REF=$DATA_DIR/dev.pe
+TAGS=$DATA_DIR/dev.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/mt_src_aligned-pe
+mkdir -p $OUTPUT_DIR
+
+# TRANSLATE 
+# Single model
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 2.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+
+# Ensemble of 4 models
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 -c $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json -i $INPUT $INPUT $INPUT $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $SINGLE_OUTPUT_FILE
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
+
+# Test
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
+INPUT=$DATA_DIR/test.mt.factor_corpus
+MT=$DATA_DIR/test.mt
+REF=$DATA_DIR/test.pe
+TAGS=$DATA_DIR/test.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/mt_src_aligned-pe
+
+# translate
+# Single SRC model
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/test.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 2.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $SINGLE_OUTPUT_FILE
+
+```
+
+
+Concat SRC+MT
+```
+GBS=~/projects/constrained_decoding
+QE_SEQ=~/projects/qe_sequence_labeling/
+MOSES_SCRIPTS=~/projects/mosesdecoder/scripts
+MODEL_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/en-de_models/en-de_concat_src_mt/fine_tune/min_risk/model/
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
+
+# All models averaged
+MODEL_0=$MODEL_DIR/model.4-best.averaged.npz
+
+# Note there will be multiple models for ensembles
+MODEL_1=$MODEL_DIR/model.iter52000.npz
+MODEL_2=$MODEL_DIR/model.iter30000.npz
+MODEL_3=$MODEL_DIR/model.iter58000.npz
+MODEL_4=$MODEL_DIR/model.iter50000.npz
+
+INPUT=$DATA_DIR/dev.src-mt.concatenated 
+MT=$DATA_DIR/dev.mt
+REF=$DATA_DIR/dev.pe
+TAGS=$DATA_DIR/dev.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/concat_src_mt
+mkdir -p $OUTPUT_DIR
+
+# TRANSLATE 
+# Single model
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/dev.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 1.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+
+# Ensemble of 4 models
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev-ensemble-4.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_1 $MODEL_2 $MODEL_3 $MODEL_4 -c $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json $MODEL_DIR/model.npz.json -i $INPUT $INPUT $INPUT $INPUT | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $SINGLE_OUTPUT_FILE
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
+
+# Test
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
+INPUT=$DATA_DIR/test.src-mt.concatenated
+MT=$DATA_DIR/test.mt
+REF=$DATA_DIR/test.pe
+TAGS=$DATA_DIR/test.tags
+
+OUTPUT_DIR=/media/1tb_drive/nematus_ape_experiments/evaluation_results/concat_src_mt
+
+# translate
+# Single SRC model
+SINGLE_OUTPUT_FILE=$OUTPUT_DIR/test.output.postprocessed
+python $GBS/scripts/translate_nematus.py -m $MODEL_0 -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 1.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $SINGLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $SINGLE_OUTPUT_FILE
+```
 
 Concat Factors
 ```
@@ -637,7 +772,6 @@ BEST_OUTPUT_FILE=$OUTPUT_DIR/test.output.postprocessed.best-training-model
 python $GBS/scripts/translate_nematus.py -m $BEST_MODEL -c $MODEL_DIR/model.npz.json -i $INPUT --length_factor 1.0 --beam_size 5 | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $BEST_OUTPUT_FILE
 
 # Evaluate
-# TODO: eval script must be updated to include test paths -- make sure to differentiate between QE and APE *.pe inputs
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $SINGLE_OUTPUT_FILE
 bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m test -h $BEST_OUTPUT_FILE
 
@@ -755,7 +889,6 @@ python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged
 
 # WMT 2017 Test
 DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2017
-
 ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/test_2017.ensemble.output.postprocessed.run10_qe_tuned
 
 python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $MT_MODEL_DIR/model.4-best.averaged.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $MT_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/test.src.prepped $DATA_DIR/test.mt.prepped $DATA_DIR/test.mt.factor_corpus $DATA_DIR/test.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/test.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
@@ -781,32 +914,38 @@ mkdir -p $OUTPUT_DIR
 OPTIMIZATION_DIR=/media/1tb_drive/nematus_ape_experiments/ape_qe/mert_optimization/all_src_new_ape_f1_product/tuning.1494723895
 WEIGHTS=$OPTIMIZATION_DIR/run10.dense
 
-# WORKING HERE
 # DEV
 DEV_DATA_DIR=/media/1tb_drive/Dropbox/data/qe/ape/concat_wmt_2016_2017
 ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/dev.ensemble.output.postprocessed.f1_tuned
 
-python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $SRC_MODEL_DIR/model.iter340000.npz $SRC_MODEL_DIR/model.iter350000.npz $SRC_MODEL_DIR/model.iter360000.npz $SRC_MODEL_DIR/model.iter370000.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.factor_corpus $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus --nbest 5 --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $SRC_MODEL_DIR/model.iter340000.npz $SRC_MODEL_DIR/model.iter350000.npz $SRC_MODEL_DIR/model.iter360000.npz $SRC_MODEL_DIR/model.iter370000.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.src.prepped $DEV_DATA_DIR/dev.mt.factor_corpus $DEV_DATA_DIR/dev.src-mt.concatenated $DEV_DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+
+# Evaluate
+bash $QE_SEQ/scripts/evaluate_ape_and_qe.sh -m dev -h $ENSEMBLE_OUTPUT_FILE
 
 # TEST
 DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
 ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/test.ensemble.output.postprocessed.f1_tuned
 
-python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $SRC_MODEL_DIR/model.iter340000.npz $SRC_MODEL_DIR/model.iter350000.npz $SRC_MODEL_DIR/model.iter360000.npz $SRC_MODEL_DIR/model.iter370000.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.mt.factor_corpus $DATA_DIR/dev.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus --nbest 5 --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $SRC_MODEL_DIR/model.iter340000.npz $SRC_MODEL_DIR/model.iter350000.npz $SRC_MODEL_DIR/model.iter360000.npz $SRC_MODEL_DIR/model.iter370000.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.mt.factor_corpus $DATA_DIR/test.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/test.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
 
 # WMT 2017 TEST
-DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2016
-ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/test.ensemble.output.postprocessed.f1_tuned
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2017
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/test_2017.ensemble.output.postprocessed.f1_tuned
 
-python $GBS_DIR/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $SRC_MODEL_DIR/model.iter340000.npz $SRC_MODEL_DIR/model.iter350000.npz $SRC_MODEL_DIR/model.iter360000.npz $SRC_MODEL_DIR/model.iter370000.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.src.prepped $DATA_DIR/dev.mt.factor_corpus $DATA_DIR/dev.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/dev.src-mt.concatenated.bpe.factor_corpus --nbest 5 --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
+python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $SRC_MODEL_DIR/model.iter340000.npz $SRC_MODEL_DIR/model.iter350000.npz $SRC_MODEL_DIR/model.iter360000.npz $SRC_MODEL_DIR/model.iter370000.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.mt.factor_corpus $DATA_DIR/test.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/test.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
 
+# WMT 2017 TEST Run 6 weights
+WEIGHTS=$OPTIMIZATION_DIR/run6.dense
+DATA_DIR=/media/1tb_drive/Dropbox/data/qe/wmt_2017/test/wmt17_qe_test_data/word_level/2017
+ENSEMBLE_OUTPUT_FILE=$OUTPUT_DIR/test_2017.ensemble.output.postprocessed.f1_tuned.run6
+
+python $GBS/scripts/translate_nematus.py -m $SRC_MODEL_DIR/model.4-best.averaged.npz $SRC_MODEL_DIR/model.iter340000.npz $SRC_MODEL_DIR/model.iter350000.npz $SRC_MODEL_DIR/model.iter360000.npz $SRC_MODEL_DIR/model.iter370000.npz $MT_ALIGN_MODEL_DIR/model.4-best.averaged.npz $CONCAT_MODEL_DIR/model.4-best.averaged.npz $CONCAT_FACTORS_MODEL_DIR/model.4-best.averaged.npz -c $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $SRC_MODEL_DIR/model.npz.json $MT_ALIGN_MODEL_DIR/model.npz.json $CONCAT_MODEL_DIR/model.npz.json $CONCAT_FACTORS_MODEL_DIR/model.npz.json -i $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.src.prepped $DATA_DIR/test.mt.factor_corpus $DATA_DIR/test.src-mt.concatenated $DATA_DIR/spacy_factor_corpus/test.src-mt.concatenated.bpe.factor_corpus --beam_size 5 --length_factor 2.0 --load_weights $WEIGHTS | sed 's/\@\@ //g' | $MOSES_SCRIPTS/recaser/detruecase.perl | $MOSES_SCRIPTS/tokenizer/deescape-special-chars.perl > $ENSEMBLE_OUTPUT_FILE
 ```
 
 Prepare WMT 2017 QE Submission
-
-
-
-
+Map to tags 
+Map to WMT submission format
 
 
 
