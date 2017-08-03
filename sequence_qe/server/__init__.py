@@ -8,244 +8,12 @@ from subprocess import Popen, PIPE
 
 from flask import Flask, request, render_template, jsonify, abort
 
-from constrained_decoding import create_constrained_decoder
-# from wtforms import Form, TextAreaField, validators
+import constrained_decoding.server
 
-logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
-# this needs to be set before we actually run the server
-app.models = None
-
-path_to_this_dir = os.path.dirname(os.path.abspath(__file__))
-app.template_folder = os.path.join(path_to_this_dir, 'templates')
-
-
-def get_pairs(word):
-    """ (Subword Encoding) Return set of symbol pairs in a word.
-
-    word is represented as tuple of symbols (symbols being variable-length strings)
-    """
-    pairs = set()
-    prev_char = word[0]
-    for char in word[1:]:
-        pairs.add((prev_char, char))
-        prev_char = char
-    return pairs
-
-
-def encode(orig, bpe_codes, cache=None):
-    """
-    (Subword Encoding) Encode word based on list of BPE merge operations, which are applied consecutively
-    """
-
-    if cache is None:
-        cache = {}
-
-    if orig in cache:
-        return cache[orig]
-
-    word = tuple(orig) + ('</w>',)
-    pairs = get_pairs(word)
-
-    while True:
-        bigram = min(pairs, key = lambda pair: bpe_codes.get(pair, float('inf')))
-        if bigram not in bpe_codes:
-            break
-        first, second = bigram
-        new_word = []
-        i = 0
-        while i < len(word):
-            try:
-                j = word.index(first, i)
-                new_word.extend(word[i:j])
-                i = j
-            except:
-                new_word.extend(word[i:])
-                break
-
-            if word[i] == first and i < len(word)-1 and word[i+1] == second:
-                new_word.append(first+second)
-                i += 2
-            else:
-                new_word.append(word[i])
-                i += 1
-        new_word = tuple(new_word)
-        word = new_word
-        if len(word) == 1:
-            break
-        else:
-            pairs = get_pairs(word)
-
-    # don't print end-of-word symbols
-    if word[-1] == '</w>':
-        word = word[:-1]
-    elif word[-1].endswith('</w>'):
-        word = word[:-1] + (word[-1].replace('</w>',''),)
-
-    cache[orig] = word
-    return word
-
-
-class BPE(object):
-
-    def __init__(self, codes, separator='@@', ignore=None):
-        self.bpe_codes = [tuple(item.split()) for item in codes]
-        self.ignore = ignore
-
-        # some hacking to deal with duplicates (only consider first instance)
-        self.bpe_codes = dict([(code, i) for (i, code) in reversed(list(enumerate(self.bpe_codes)))])
-        self.separator = separator
-
-    def segment(self, sentence):
-        """segment single sentence (whitespace-tokenized string) with BPE encoding"""
-
-        output = []
-        for word in sentence.split():
-            if self.ignore is not None and word in self.ignore:
-                output.append(word)
-            else:
-                new_word = encode(word, self.bpe_codes)
-
-                for item in new_word[:-1]:
-                    output.append(item + self.separator)
-                output.append(new_word[-1])
-
-        return u' '.join(output)
-
-
-class DataProcessor(object):
-    """
-    This class encapusulates pre- and post-processing functionality for TermNMT workflows
-    
-    """
-
-    def __init__(self, source_lang, use_subword=False, subword_codes=None):
-        self.use_subword = use_subword
-        if self.use_subword:
-            subword_codes_iter = codecs.open(subword_codes, encoding='utf-8')
-            self.bpe = BPE(subword_codes_iter)
-
-        self.source_lang = source_lang
-
-        # Note hardcoding of script location within repo
-        tokenize_script = os.path.join(os.path.dirname(__file__), 'resources/tokenizer/tokenizer.perl')
-        self.tokenizer_cmd = [tokenize_script, '-l', self.source_lang, '-no-escape', '1', '-q', '-', '-b']
-        self.tokenizer = Popen(self.tokenizer_cmd, stdin=PIPE, stdout=PIPE, bufsize=1)
-
-    def tokenize(self, text):
-        if len(text.strip()) == 0:
-            return []
-
-        if type(text) is unicode:
-            text = text.encode('utf8')
-        self.tokenizer.stdin.write(text + '\n\n')
-        self.tokenizer.stdin.flush()
-        self.tokenizer.stdout.flush()
-
-        # this logic is due to issues with calling out to the moses tokenizer
-        segment = '\n'
-        while segment == '\n':
-            segment = self.tokenizer.stdout.readline()
-        # read one more line
-        _ = self.tokenizer.stdout.readline()
-
-        utf_line = segment.rstrip().decode('utf8')
-
-        if self.use_subword:
-            tokens = self.bpe.segment(utf_line).split()
-        else:
-            tokens = utf_line.split()
-        return tokens
-
-    def detokenize(self, text):
-        """
-        Detokenize a string using the moses detokenizer
-        
-        Args: 
-            
-        Returns:
-          
-        """
-        pass
-
-    def truecase(self, text):
-        """
-        Truecase a string with this DataProcessor's truecasing model
-        
-        Args:
-        
-        Returns:
-        
-        """
-        pass
-
-    def detruecase(self, text):
-        """
-        Deruecase a string using moses detruecaser
-        
-        Args:
-        
-        Returns:
-        
-        """
-        pass
-
-
-    def map_terms(self, tokens):
-        """
-        Map tokenized string through terminology
-        
-        Args:
-          tokens: 
-          
-        Returns:
-          
-        """
-        pass
-
-
-# class NeuralMTDemoForm(Form):
-#     sentence = TextAreaField('Write the sentence here:',
-#                              [validators.Length(min=1, max=100000)])
-#     prefix = TextAreaField('Write the target prefix here:',
-#                              [validators.Length(min=1, max=100)])
-#     target_text = ''
-
-
-# TODO: multiple instances of the same model, delegate via thread queue?
-# TODO: supplementary info via endpoint -- softmax confidence, cumulative confidence, etc...
-# TODO: online updating via cache
-# TODO: require source and target language specification
-# @app.route('/neural_MT_demo', methods=['GET', 'POST'])
-# def neural_mt_demo():
-#     form = NeuralMTDemoForm(request.form)
-#     if request.method == 'POST' and form.validate():
-#
-#         # TODO: delegate to prefix decoder function here
-#         source_text = form.sentence.data # Problems in Spanish with 'A~nos. E'
-#         target_text = form.prefix.data
-#         logger.info('Acquired lock')
-#         lock.acquire()
-#
-#         source_sentence = source_text.encode('utf-8')
-#         target_prefix = target_text.encode('utf-8')
-#
-#         # translations, costs = app.predictor.predict_segment(source_sentence, tokenize=True, detokenize=True)
-#         translations, costs = app.predictor.predict_segment(source_sentence, target_prefix=target_prefix,
-#                                                             tokenize=True, detokenize=True, n_best=10)
-#
-#         output_text = ''
-#         for hyp in translations:
-#             output_text += hyp + '\n'
-#
-#         form.target_text = output_text.decode('utf-8')
-#         logger.info('detokenized translations:\n {}'.format(output_text))
-#
-#         print "Lock release"
-#         lock.release()
-#
-#     return render_template('neural_MT_demo.html', form=form)
+# WORKING: we'll need to call out to TERCOM to get tags
+# WORKING: to get confidence, we need TERCOM's predictions for an n-best list of APE outputs
+# WORKING: alternatively we would need the softmax output at each timestep
+# The question is: given an MT output, how much would you change
 
 
 @app.route('/word_level_qe', methods=['GET', 'POST'])
@@ -256,7 +24,7 @@ def qe_endpoint():
         print(request_data)
         source_lang = request_data['source_lang']
         target_lang = request_data['target_lang']
-        
+
         # return a list of (start, end) indices with labels
         # [
         #     {'start':int, 'end': int, 'label': str, 'confidence': float}
@@ -266,7 +34,7 @@ def qe_endpoint():
             logger.error('MT Server does not have a model for: {}'.format((source_lang, target_lang)))
             abort(404)
 
-        source_sentence = request_data['source_sentence'] 
+        source_sentence = request_data['source_sentence']
 
         #logger.info('Acquired lock')
         #lock.acquire()
@@ -289,15 +57,15 @@ def qe_endpoint():
 def decode(source_lang, target_lang, source_sentence, constraints=None, n_best=1, length_factor=1.5, beam_size=5):
     """
     Decode an input sentence
-    
+
     Args:
       source_lang: two char src lang abbreviation
       target_lang: two char src lang abbreviation
       source_sentence: the source sentence to translate (we assume already preprocessed)
       n_best: the length of the n-best list to return (default=1)
-      
+
     Returns:
-        
+
     """
 
     model = app.models[(source_lang, target_lang)]
@@ -359,7 +127,7 @@ def decode(source_lang, target_lang, source_sentence, constraints=None, n_best=1
     # return postprocessed_hyps
 
 
-# Note: this function will break libgpuarray if theano is using the GPU 
+# Note: this function will break libgpuarray if theano is using the GPU
 def run_imt_server(models, processors=None, port=5007):
     # Note: servers use a special .yaml config format-- maps language pairs to NMT configuration files
     # the server instantiates a predictor for each config, and hashes them by language pair tuples -- i.e. (en,fr)
