@@ -1,148 +1,228 @@
 import logging
 import os
-import re
-import json
-import os
 import codecs
+import re
 from subprocess import Popen, PIPE
 
-from flask import Flask, request, render_template, jsonify, abort
-
-import constrained_decoding.server
-
-# WORKING: we'll need to call out to TERCOM to get tags
-# WORKING: to get confidence, we need TERCOM's predictions for an n-best list of APE outputs
-# WORKING: alternatively we would need the softmax output at each timestep
-# The question is: given an MT output, how much would you change
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
-@app.route('/word_level_qe', methods=['GET', 'POST'])
-def qe_endpoint():
-    # TODO: parse request object, remove form
-    if request.method == 'POST':
-        request_data = request.get_json()
-        print(request_data)
-        source_lang = request_data['source_lang']
-        target_lang = request_data['target_lang']
+def get_pairs(word):
+    """ (Subword Encoding) Return set of symbol pairs in a word.
 
-        # return a list of (start, end) indices with labels
-        # [
-        #     {'start':int, 'end': int, 'label': str, 'confidence': float}
-        # ]
-
-        if (source_lang, target_lang) not in app.models:
-            logger.error('MT Server does not have a model for: {}'.format((source_lang, target_lang)))
-            abort(404)
-
-        source_sentence = request_data['source_sentence']
-
-        #logger.info('Acquired lock')
-        #lock.acquire()
-
-        translations = decode(source_lang, target_lang, source_sentence, n_best=n_best)
-
-        #print "Lock release"
-        #lock.release()
-
-    return jsonify({'ranked_translations': translations})
-
-
-# TODO: add DataProcessor initialized with all the assets we need for pre-/post- processing
-# TODO: add terminology mapping hooks into Terminology NMT DataProcessor
-# TODO: Map and unmap hooks
-# TODO: remember that placeholder term mapping needs to pass the restore map through to postprocessing
-# TODO: restoring @num@ placeholders with word alignments? -- leave this for last
-
-
-def decode(source_lang, target_lang, source_sentence, constraints=None, n_best=1, length_factor=1.5, beam_size=5):
+    word is represented as tuple of symbols (symbols being variable-length strings)
     """
-    Decode an input sentence
+    pairs = set()
+    prev_char = word[0]
+    for char in word[1:]:
+        pairs.add((prev_char, char))
+        prev_char = char
+    return pairs
 
-    Args:
-      source_lang: two char src lang abbreviation
-      target_lang: two char src lang abbreviation
-      source_sentence: the source sentence to translate (we assume already preprocessed)
-      n_best: the length of the n-best list to return (default=1)
 
-    Returns:
-
+def encode(orig, bpe_codes, cache=None):
+    """
+    (Subword Encoding) Encode word based on list of BPE merge operations, which are applied consecutively
     """
 
-    model = app.models[(source_lang, target_lang)]
-    decoder = app.decoders[(source_lang, target_lang)]
-    # Note: remember we support multiple inputs for each model (i.e. each model may be an ensemble where sub-models
-    # accept different inputs)
+    if cache is None:
+        cache = {}
 
-    data_processor = app.processors.get((source_lang, target_lang), None)
-    if data_processor is not None:
-        source_sentence = u' '.join(data_processor.tokenize(source_sentence))
+    if orig in cache:
+        return cache[orig]
 
-    inputs = [source_sentence]
+    word = tuple(orig) + ('</w>',)
+    pairs = get_pairs(word)
 
-    mapped_inputs = model.map_inputs(inputs)
+    while True:
+        bigram = min(pairs, key = lambda pair: bpe_codes.get(pair, float('inf')))
+        if bigram not in bpe_codes:
+            break
+        first, second = bigram
+        new_word = []
+        i = 0
+        while i < len(word):
+            try:
+                j = word.index(first, i)
+                new_word.extend(word[i:j])
+                i = j
+            except:
+                new_word.extend(word[i:])
+                break
 
-    input_constraints = []
-    if constraints is not None:
-        input_constraints = model.map_constraints(constraints)
+            if word[i] == first and i < len(word)-1 and word[i+1] == second:
+                new_word.append(first+second)
+                i += 2
+            else:
+                new_word.append(word[i])
+                i += 1
+        new_word = tuple(new_word)
+        word = new_word
+        if len(word) == 1:
+            break
+        else:
+            pairs = get_pairs(word)
 
-    start_hyp = model.start_hypothesis(mapped_inputs, input_constraints)
+    # don't print end-of-word symbols
+    if word[-1] == '</w>':
+        word = word[:-1]
+    elif word[-1].endswith('</w>'):
+        word = word[:-1] + (word[-1].replace('</w>',''),)
 
-    beam_size = max(n_best, beam_size)
-    search_grid = decoder.search(start_hyp=start_hyp, constraints=input_constraints,
-                                 max_hyp_len=int(round(len(mapped_inputs[0][0]) * length_factor)),
-                                 beam_size=beam_size)
-
-    best_output, best_alignments = decoder.best_n(search_grid, model.eos_token, n_best=n_best,
-                                                  return_model_scores=False, return_alignments=True,
-                                                  length_normalization=True)
-
-    if n_best > 1:
-        # start from idx 1 to cut off `None` at the beginning of the sequence
-        # separate each n-best list with newline
-        decoder_output = [u' '.join(s[0][1:]) for s in best_output]
-    else:
-        # start from idx 1 to cut off `None` at the beginning of the sequence
-        decoder_output = [u' '.join(best_output[0][1:])]
-
-    # Note alignments are always an n-best list (may be n=1)
-    # if write_alignments is not None:
-    #     with codecs.open(write_alignments, 'a+', encoding='utf8') as align_out:
-    #         align_out.write(json.dumps([a.tolist() for a in best_alignments]) + u'\n')
-    return decoder_output
-
-    # best_n_hyps, best_n_costs, best_n_glimpses, best_n_word_level_costs, best_n_confidences, src_in = predictor.predict_segment(source_sentence, target_prefix=target_prefix,
-    #                                                     tokenize=True, detokenize=True, n_best=n_best, max_length=predictor.max_length)
-
-    # TODO: we _must_ add subword configuration as well -- we need to apply subword, then re-concat afterwards
-    # remove EOS and normalize subword
-    # def _postprocess(hyp):
-    #     hyp = re.sub("</S>$", "", hyp)
-    #     # Note the order of the next two lines is important
-    #     hyp = re.sub("\@\@ ", "", hyp)
-    #     hyp = re.sub("\@\@", "", hyp)
-    #     return hyp
-    #
-    # postprocessed_hyps = [_postprocess(h) for h in best_n_hyps]
-
-    # return postprocessed_hyps
+    cache[orig] = word
+    return word
 
 
-# Note: this function will break libgpuarray if theano is using the GPU
-def run_imt_server(models, processors=None, port=5007):
-    # Note: servers use a special .yaml config format-- maps language pairs to NMT configuration files
-    # the server instantiates a predictor for each config, and hashes them by language pair tuples -- i.e. (en,fr)
-    # Caller passes in a dict of predictors, keys are tuples (source_lang, target_lang)
-    if processors is None:
-        app.processors = {k: None for k in models.keys()}
-    else:
-        app.processors = processors
+class BPE(object):
 
-    app.models = models
-    app.decoders = {k: create_constrained_decoder(v) for k, v in models.items()}
+    def __init__(self, codes, separator='@@', ignore=None):
+        self.bpe_codes = [tuple(item.split()) for item in codes]
+        self.ignore = ignore
+
+        # some hacking to deal with duplicates (only consider first instance)
+        self.bpe_codes = dict([(code, i) for (i, code) in reversed(list(enumerate(self.bpe_codes)))])
+        self.separator = separator
+
+    def segment(self, sentence):
+        """segment single sentence (whitespace-tokenized string) with BPE encoding"""
+
+        output = []
+        for word in sentence.split():
+            if self.ignore is not None and word in self.ignore:
+                output.append(word)
+            else:
+                new_word = encode(word, self.bpe_codes)
+
+                for item in new_word[:-1]:
+                    output.append(item + self.separator)
+                output.append(new_word[-1])
+
+        return u' '.join(output)
 
 
-    logger.info('Server starting on port: {}'.format(port))
-    # logger.info('navigate to: http://localhost:{}/neural_MT_demo to see the system demo'.format(port))
-    # app.run(debug=True, port=port, host='127.0.0.1', threaded=True)
-    app.run(debug=True, port=port, host='127.0.0.1', threaded=False)
+class DataProcessor(object):
+    """
+    This class encapusulates pre- and post-processing functionality
 
+    """
+
+    def __init__(self, lang, use_subword=False, subword_codes=None, escape_special_chars=False, truecase_model=None):
+        self.use_subword = use_subword
+        if self.use_subword:
+            subword_codes_iter = codecs.open(subword_codes, encoding='utf-8')
+            self.bpe = BPE(subword_codes_iter)
+
+        self.lang = lang
+
+        # Note hardcoding of script location within repo
+        tokenize_script = os.path.join(os.path.dirname(__file__), 'resources/tokenizer/tokenizer.perl')
+        self.tokenizer_cmd = [tokenize_script, '-l', self.lang, '-no-escape', '1', '-q', '-', '-b']
+        self.tokenizer = Popen(self.tokenizer_cmd, stdin=PIPE, stdout=PIPE, bufsize=1)
+
+        detokenize_script = os.path.join(os.path.dirname(__file__), 'resources/tokenizer/detokenizer.perl')
+        self.detokenizer_cmd = [detokenize_script, '-l', self.lang, '-q', '-']
+
+        self.escape_special_chars = escape_special_chars
+
+        if self.escape_special_chars:
+            escape_special_chars_script = os.path.join(os.path.dirname(__file__),
+                                                       'resources/tokenizer/escape-special-chars.perl')
+            self.escape_special_chars_cmd = [escape_special_chars_script]
+
+            deescape_special_chars_script = os.path.join(os.path.dirname(__file__),
+                                                         'resources/tokenizer/deescape-special-chars.perl')
+            self.deescape_special_chars_cmd = [deescape_special_chars_script]
+
+        self.truecase = False
+        if truecase_model is not None:
+            self.truecase = True
+
+            truecase_script = os.path.join(os.path.dirname(__file__),
+                                           'resources/recaser/truecase.perl')
+            self.truecase_cmd = [truecase_script, '-m', truecase_model]
+
+            detruecase_script = os.path.join(os.path.dirname(__file__),
+                                             'resources/recaser/detruecase.perl')
+            self.detruecase_cmd = [detruecase_script]
+
+    def tokenize(self, text):
+        if len(text.strip()) == 0:
+            return []
+
+        if type(text) is unicode:
+            text = text.encode('utf8')
+        self.tokenizer.stdin.write(text + '\n\n')
+        self.tokenizer.stdin.flush()
+        self.tokenizer.stdout.flush()
+
+        # this logic is due to issues with calling out to the moses tokenizer
+        segment = '\n'
+        while segment == '\n':
+            segment = self.tokenizer.stdout.readline()
+        # read one more line
+        _ = self.tokenizer.stdout.readline()
+        segment = segment.rstrip()
+
+        if self.escape_special_chars:
+            char_escape = Popen(self.escape_special_chars_cmd, stdin=PIPE, stdout=PIPE)
+            # this script cuts off a whitespace, so we add some extra
+            segment, _ = char_escape.communicate(segment + '   ')
+            segment = segment.rstrip()
+
+        if self.truecase:
+            truecaser = Popen(self.truecase_cmd, stdin=PIPE, stdout=PIPE)
+            # this script cuts off a whitespace, so we add some extra
+            segment, _ = truecaser.communicate(segment + '   ')
+            segment = segment.rstrip()
+
+        utf_line = segment.decode('utf8')
+
+        if self.use_subword:
+            tokens = self.bpe.segment(utf_line).split()
+        else:
+            tokens = utf_line.split()
+        return tokens
+
+    def detokenize(self, text):
+        """
+        Detokenize a string using the moses detokenizer
+
+        Args:
+
+        Returns:
+
+        """
+        if self.use_subword:
+            text = re.sub("\@\@ ", "", text)
+            text = re.sub("\@\@", "", text)
+
+        if type(text) is unicode:
+            text = text.encode('utf8')
+
+        detokenizer = Popen(self.detokenizer_cmd, stdin=PIPE, stdout=PIPE)
+        text, _ = detokenizer.communicate(text)
+
+        utf_line = text.rstrip().decode('utf8')
+        return utf_line
+
+    def deescape_special_chars(self, text):
+        if type(text) is unicode:
+            text = text.encode('utf8')
+        char_deescape = Popen(self.deescape_special_chars_cmd, stdin=PIPE, stdout=PIPE)
+        # this script cuts off a whitespace, so we add some extra
+        text, _ = char_deescape.communicate(text + '   ')
+        text = text.rstrip()
+        utf_line = text.decode('utf8')
+        return utf_line
+
+    def detruecase(self, text):
+        if type(text) is unicode:
+            text = text.encode('utf8')
+        detruecaser = Popen(self.detruecase_cmd, stdin=PIPE, stdout=PIPE)
+        # this script cuts off a whitespace, so we add some extra
+        text, _ = detruecaser.communicate(text + '   ')
+        text = text.rstrip()
+        utf_line = text.decode('utf8')
+        return utf_line
