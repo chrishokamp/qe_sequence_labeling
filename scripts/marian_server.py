@@ -40,13 +40,12 @@ def handle_websocket():
                         del listSentences[numEle - 1]
                     trans = nmt.translate(listSentences)
                     assert len(trans) == 1, 'we only support single inputs for now (we decode one segment at a time)'
-                    trans = trans[0]
+                    trans = trans[0].decode('utf8')
 
                     # parse the n-best list output of Marian
                     n_best_outputs = [segment.split(u' ||| ')[1] for segment in trans.split(u'\n')]
                     wsock.send(json.dumps({'segments': n_best_outputs}))
                     
-                    # wsock.send(json.dumps({'segments': trans}))
             except WebSocketError:
                 break
 

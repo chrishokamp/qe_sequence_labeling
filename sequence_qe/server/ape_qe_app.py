@@ -6,9 +6,10 @@ import os
 import codecs
 from subprocess import Popen, PIPE
 
-from flask import Flask, request, render_template, jsonify, abort
+from sequence_qe import dataset
 
-import constrained_decoding
+from flask import Flask, request, render_template, jsonify, abort
+from websocket import create_connection
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -19,6 +20,43 @@ app = Flask(__name__)
 app.models = None
 
 
+def concat_src_trg(src, trg, break_token=u'@BREAK@'):
+    return u'{} {} {}'.format(src, break_token, trg)
+
+
+# WORKING: all preprocessing here (for both src and trg seq)
+def preprocess(lang, text):
+    assert type(text) is unicode, 'preprocessing only accepts unicode input'
+    if lang not in app.processors:
+        logger.error('MT Server does not have a DataProcessor for: {}'.format(lang))
+        raise ValueError
+
+    data_processor = app.processors[lang]
+
+    # preprocess
+    # Note: we may need to factor out the tokenization steps and run them individually
+    text = data_processor.tokenize(text)
+
+    return text
+
+
+def postprocess(lang, text):
+    # note we need to exactly reverse what happened in `preprocess`, but this must be done step-by-step so that we don't screw up the span indices
+    assert type(text) is unicode, 'postprocessing only accepts unicode input'
+    if lang not in app.processors:
+        logger.error('MT Server does not have a DataProcessor for: {}'.format(lang))
+        raise ValueError
+
+    data_processor = app.processors[lang]
+
+    # postprocess
+    # Note: we may need to factor out the tokenization steps and run them individually
+    text = data_processor.detokenize(text)
+    text = data_processor.deescape_special_chars(text)
+    text = data_processor.detruecase(text)
+    return text
+
+
 # WORKING: we'll need to call out to TERCOM to get tags
 # WORKING: to get confidence, we need TERCOM's predictions for an n-best list of APE outputs
 # WORKING: alternatively we would need the softmax output at each timestep
@@ -26,120 +64,98 @@ app.models = None
 # WORKING: this endpoint calls the constrained decoding server after applying pre-/post-processing
 @app.route('/word_level_qe', methods=['GET', 'POST'])
 def qe_endpoint():
-    # TODO: parse request object, remove form
     if request.method == 'POST':
         request_data = request.get_json()
-        source_lang = request_data['source_lang']
-        target_lang = request_data['target_lang']
+        source_lang = request_data['src_lang']
+        target_lang = request_data['trg_lang']
 
         # WORKING: we use the n-best list to compute word-level confidence
-        n_best = request_data.get('n_best', 1)
-        beam_size = 1
         # return a list of (start, end) indices with labels
         # [
         #     {'start':int, 'end': int, 'label': str, 'confidence': float}
         # ]
 
-        # WORKING: add preprocessing for src+mt concatenation
+        # if (source_lang, target_lang) not in app.models:
+        #     logger.error('MT Server does not have a model for: {}'.format((source_lang, target_lang)))
+        #     abort(404)
 
-        if (source_lang, target_lang) not in app.models:
-            logger.error('MT Server does not have a model for: {}'.format((source_lang, target_lang)))
-            abort(404)
+        raw_source_sentence = request_data['src_segment']
+        raw_target_sentence = request_data['trg_segment']
 
-        source_sentence = request_data['source_sentence']
+        # Note: dependency between input preprocessing and model server
+        source_sentence = preprocess(source_lang, raw_source_sentence)
+        target_sentence = preprocess(target_lang, raw_target_sentence)
 
-        # WORKING: how to get n-best list from Marian
-        # WORKING: all pre-/post-processing for QE here 
-        translations = constrained_decoding.server.decode(source_lang, target_lang, source_sentence, n_best=n_best)
+        model_input = concat_src_trg(source_sentence, target_sentence)
+        print(model_input)
 
-    return jsonify({'ranked_translations': translations})
+        translations = decode(model_input, port=app.marian_port)
+        print(translations)
 
+        # note that we just fully post process the translations, and use the _untokenized_ target input here,
+        # note this could be suboptimal
+        # note this method saves some complex span re-alignment logic
+        translations = [postprocess(target_lang, trans) for trans in translations]
+        hyps = [raw_target_sentence] * len(translations)
 
-# TODO: add DataProcessor initialized with all the assets we need for pre-/post- processing
-# TODO: add terminology mapping hooks into Terminology NMT DataProcessor
-# TODO: Map and unmap hooks
-# TODO: remember that placeholder term mapping needs to pass the restore map through to postprocessing
-# TODO: restoring @num@ placeholders with word alignments? -- leave this for last
+        # now get the TER alignments for the n-best translations
+        qe_labels = dataset.extract_ter_alignment(hyps,
+                                                  translations,
+                                                  source_lang,
+                                                  target_lang,
+                                                  app.tercom_path)
+        tag_stacks = zip(*qe_labels)
+        ok_counts = [sum([1 for tag in tag_stack if tag == 'OK']) for tag_stack in tag_stacks]
+        # note directly splitting input MT sequence on whitespace
+        nbest_size = float(len(translations))
+        ok_prob = [c / nbest_size for c in ok_counts]
+        bad_prob = [1.0 - p for p in ok_prob]
+        confidence_dict = {'OK': ok_prob, 'BAD': bad_prob}
 
+        # we return the 1-best tags, but use the n-best list to get confidence
+        # TODO: now map all tags to character-level spans
+        qe_objs = []
+        for idx, tag in enumerate(qe_labels[0]):
+            qe_obj = {
+                'tag': tag,
+                'confidence': confidence_dict[tag][idx],
+                'idx': idx
+            }
+            qe_objs.append(qe_obj)
 
-def decode(source_lang, target_lang, source_sentence, constraints=None, n_best=1, length_factor=1.5, beam_size=5):
-    """
-    Decode an input sentence
-
-    Args:
-      source_lang: two char src lang abbreviation
-      target_lang: two char src lang abbreviation
-      source_sentence: the source sentence to translate (we assume already preprocessed)
-      n_best: the length of the n-best list to return (default=1)
-
-    Returns:
-
-    """
-
-    model = app.models[(source_lang, target_lang)]
-    decoder = app.decoders[(source_lang, target_lang)]
-    # Note: remember we support multiple inputs for each model (i.e. each model may be an ensemble where sub-models
-    # accept different inputs)
-
-    data_processor = app.processors.get((source_lang, target_lang), None)
-    if data_processor is not None:
-        source_sentence = u' '.join(data_processor.tokenize(source_sentence))
-
-    inputs = [source_sentence]
-
-    mapped_inputs = model.map_inputs(inputs)
-
-    input_constraints = []
-    if constraints is not None:
-        input_constraints = model.map_constraints(constraints)
-
-    start_hyp = model.start_hypothesis(mapped_inputs, input_constraints)
-
-    beam_size = max(n_best, beam_size)
-    search_grid = decoder.search(start_hyp=start_hyp, constraints=input_constraints,
-                                 max_hyp_len=int(round(len(mapped_inputs[0][0]) * length_factor)),
-                                 beam_size=beam_size)
-
-    best_output, best_alignments = decoder.best_n(search_grid, model.eos_token, n_best=n_best,
-                                                  return_model_scores=False, return_alignments=True,
-                                                  length_normalization=True)
-
-    if n_best > 1:
-        # start from idx 1 to cut off `None` at the beginning of the sequence
-        # separate each n-best list with newline
-        decoder_output = [u' '.join(s[0][1:]) for s in best_output]
-    else:
-        # start from idx 1 to cut off `None` at the beginning of the sequence
-        decoder_output = [u' '.join(best_output[0][1:])]
-
-    return decoder_output
+    return jsonify({'qe_labels': qe_objs})
 
 
-def run_ape_qe_server(processors, port=5007):
+def decode(source_text, domain='ws://localhost', port='8080'):
+    print("DECODE")
+
+    ws_location = '{}:{}/translate'.format(domain, port)
+    # Note: this way of using the websocket is wasteful, because we don't take advantage of the ability to keep it open
+    ws = create_connection(ws_location)
+
+    # build the request object
+    # we wrap input in a list because Marian server expects lists
+    message = json.dumps({
+        'segments': [source_text],
+    })
+
+    ws.send(message)
+    decoded_segments = json.loads(ws.recv())
+    ws.close()
+
+    return decoded_segments['segments']
+
+
+def run_ape_qe_server(processors, port=5007, marian_port=8080):
+
     # Caller passes in a dict of DataProcessors, keys are language codes
     app.processors = processors
 
-    logger.info('Server starting on port: {}'.format(port))
-    # logger.info('navigate to: http://localhost:{}/neural_MT_demo to see the system demo'.format(port))
+    # the port where the Marian websocket is open
+    app.marian_port = marian_port
+
+    app.tercom_path = os.path.join(os.path.dirname(__file__), 'resources/ter')
+
+    logger.info('Server starting on port: {}, interfacing with Marian on port: {}'.format(port, marian_port))
     app.run(debug=True, port=port, host='127.0.0.1', threaded=True)
-
-
-# Note: this function will break libgpuarray if theano is using the GPU
-# def run_imt_server(models, processors=None, port=5007):
-#     # Note: servers use a special .yaml config format-- maps language pairs to NMT configuration files
-#     # the server instantiates a predictor for each config, and hashes them by language pair tuples -- i.e. (en,fr)
-#     # Caller passes in a dict of predictors, keys are tuples (source_lang, target_lang)
-#     if processors is None:
-#         app.processors = {k: None for k in models.keys()}
-#     else:
-#         app.processors = processors
-#
-#     app.models = models
-#     app.decoders = {k: create_constrained_decoder(v) for k, v in models.items()}
-#
-#
-#     logger.info('Server starting on port: {}'.format(port))
-#     # logger.info('navigate to: http://localhost:{}/neural_MT_demo to see the system demo'.format(port))
-#     # app.run(debug=True, port=port, host='127.0.0.1', threaded=True)
-#     app.run(debug=True, port=port, host='127.0.0.1', threaded=False)
 

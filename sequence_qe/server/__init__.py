@@ -172,18 +172,20 @@ class DataProcessor(object):
             segment = segment.rstrip()
 
         if self.truecase:
-            truecaser = Popen(self.truecase_cmd, stdin=PIPE, stdout=PIPE)
+            # Chris: this takes forever, so commented until we find a realtime solution
+            # truecaser = Popen(self.truecase_cmd, stdin=PIPE, stdout=PIPE)
             # this script cuts off a whitespace, so we add some extra
-            segment, _ = truecaser.communicate(segment + '   ')
-            segment = segment.rstrip()
+            # segment, _ = truecaser.communicate(segment + '   ')
+            # segment = segment.rstrip()
+            # Chris: hack which mocks truecasing
+            segment = segment[0].lower() + segment[1:]
 
         utf_line = segment.decode('utf8')
 
         if self.use_subword:
-            tokens = self.bpe.segment(utf_line).split()
+            return self.bpe.segment(utf_line)
         else:
-            tokens = utf_line.split()
-        return tokens
+            return utf_line
 
     def detokenize(self, text):
         """
