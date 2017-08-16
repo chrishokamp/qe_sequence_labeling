@@ -228,3 +228,53 @@ class DataProcessor(object):
         text = text.rstrip()
         utf_line = text.decode('utf8')
         return utf_line
+
+
+def remap_constraint_indices(tokenized_sequence, detokenized_sequence, constraint_indices):
+    """
+    Map the constraint indices of a tokenized sequence to the indices of a detokenized sequence
+
+    Any time there was '@@ ' in the tokenized sequence, we removed it
+      - the detokenized sequence has fewer spaces than the tokenized sequence
+    """
+    constraint_idx_starts = {start: end for start, end in constraint_indices}
+    constraint_idx_ends = {end: start for start, end in constraint_indices}
+
+    remapped_indices = []
+    tokenized_idx = 0
+    current_offset = 0
+    true_start = None
+    for true_idx, output_char in enumerate(detokenized_sequence):
+        if tokenized_idx in constraint_idx_starts:
+            true_start = tokenized_idx - current_offset
+        elif tokenized_idx in constraint_idx_ends:
+            assert true_start is not None, 'if we found an end, we also need a start'
+            true_end = tokenized_idx - current_offset
+            remapped_indices.append([true_start, true_end])
+            true_start = None
+        # this logic assumes that post-processing did not _change_ any characters
+        # I.e. no characters were substituted for other characters
+        while output_char != tokenized_sequence[tokenized_idx]:
+            tokenized_idx += 1
+            current_offset += 1
+            if tokenized_idx > len(tokenized_sequence):
+                raise IndexError('We went beyond the end of the longer sequence: {}, when comparing with: {}'.format(
+                    tokenized_sequence,
+                    detokenized_sequence
+                ))
+
+            if tokenized_idx in constraint_idx_starts:
+                true_start = tokenized_idx - current_offset
+            elif tokenized_idx in constraint_idx_ends:
+                assert true_start is not None, 'if we found an end, we also need a start'
+                true_end = tokenized_idx - current_offset
+                remapped_indices.append([true_start, true_end])
+                true_start = None
+
+        tokenized_idx += 1
+
+    if true_start is not None:
+        true_end = tokenized_idx - current_offset
+        remapped_indices.append([true_start, true_end])
+
+    return remapped_indices
