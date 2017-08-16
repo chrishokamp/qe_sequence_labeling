@@ -229,6 +229,11 @@ class DataProcessor(object):
         utf_line = text.decode('utf8')
         return utf_line
 
+    def debpe(self, text):
+        text = re.sub("\@\@ ", "", text)
+        text = re.sub("\@\@", "", text)
+        return text
+
 
 def remap_constraint_indices(tokenized_sequence, detokenized_sequence, constraint_indices):
     """

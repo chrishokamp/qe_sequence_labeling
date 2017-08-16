@@ -102,7 +102,9 @@ def qe_endpoint():
                                          for tok in target_sentence.split()])
             translations = no_specials
 
-
+        # just debpe
+        translations = [target_data_processor.debpe(translation) for translation in translations]
+        target_sentence = target_data_processor.debpe(target_sentence)
         hyps = [target_sentence] * len(translations)
 
         # translations = [postprocess(target_lang, trans) for trans in raw_translations]

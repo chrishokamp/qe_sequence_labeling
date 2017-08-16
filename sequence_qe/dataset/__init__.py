@@ -31,9 +31,7 @@ def mkdir_p(path):
             raise
 
 
-# WORKING: return tags directly
 def extract_ter_alignment(hyps, refs, src_lang, trg_lang, tercom_path):
-
     tercom_jar = os.path.join(tercom_path, 'tercom.7.25.jar')
 
     output_prefix = os.path.join('{}-{}.tercom.out'.format(src_lang, trg_lang))
@@ -49,8 +47,8 @@ def extract_ter_alignment(hyps, refs, src_lang, trg_lang, tercom_path):
     temp_refs_file = tempfile.NamedTemporaryFile(delete=False)
     for i, (hyp, ref) in enumerate(hyp_ref_iter):
         # Note the logic for escaping XML entities here
-        temp_hyps_file.write(('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in hyp]), i)).encode('utf8'))
-        temp_refs_file.write(('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in ref]), i)).encode('utf8'))
+        temp_hyps_file.write('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in hyp]), i))
+        temp_refs_file.write('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in ref]), i))
     temp_hyps_file.close()
     temp_refs_file.close()
 
