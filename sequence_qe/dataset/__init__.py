@@ -47,8 +47,8 @@ def extract_ter_alignment(hyps, refs, src_lang, trg_lang, tercom_path):
     temp_refs_file = tempfile.NamedTemporaryFile(delete=False)
     for i, (hyp, ref) in enumerate(hyp_ref_iter):
         # Note the logic for escaping XML entities here
-        temp_hyps_file.write('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in hyp]), i))
-        temp_refs_file.write('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in ref]), i))
+        temp_hyps_file.write('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in hyp]).encode('utf8'), i))
+        temp_refs_file.write('%s\t(%.12d)\n' % (u' '.join([cgi.escape(w) for w in ref]).encode('utf8'), i))
     temp_hyps_file.close()
     temp_refs_file.close()
 
