@@ -6,6 +6,8 @@ import os
 import codecs
 from subprocess import Popen, PIPE
 
+import pylru
+
 from sequence_qe import dataset
 from sequence_qe import server
 
@@ -20,12 +22,14 @@ app = Flask(__name__)
 # this needs to be set before we actually run the server
 app.models = None
 
+cache_size = 1000
+app.local_cache = pylru.lrucache(cache_size)
+
 
 def concat_src_trg(src, trg, break_token=u'@BREAK@'):
     return u'{} {} {}'.format(src, break_token, trg)
 
 
-# WORKING: all preprocessing here (for both src and trg seq)
 def preprocess(lang, text):
     assert type(text) is unicode, 'preprocessing only accepts unicode input'
     if lang not in app.processors:
@@ -58,12 +62,7 @@ def postprocess(lang, text):
     return text
 
 
-# WORKING: we'll need to call out to TERCOM to get tags
-# WORKING: to get confidence, we need TERCOM's predictions for an n-best list of APE outputs
-# WORKING: alternatively we would need the softmax output at each timestep
 # The question is: given an MT output, how much would you change
-# WORKING: this endpoint calls the constrained decoding server after applying pre-/post-processing
-# TODO: persistent cache on this server
 @app.route('/word_level_qe', methods=['GET', 'POST'])
 def qe_endpoint():
     if request.method == 'POST':
@@ -77,6 +76,11 @@ def qe_endpoint():
 
         raw_source_sentence = request_data['src_segment']
         raw_target_sentence = request_data['trg_segment']
+
+        cache_str = json.dumps(request_data)
+        if cache_str in app.local_cache:
+            logger.info('Cache hit: {}'.format(cache_str))
+            return app.local_cache[cache_str]
 
         # Note: dependency between input preprocessing and model server
         source_sentence = preprocess(source_lang, raw_source_sentence)
@@ -162,7 +166,10 @@ def qe_endpoint():
             }
             qe_objs.append(qe_obj)
 
-    return jsonify({'qe_labels': qe_objs})
+    output_json = jsonify({'qe_labels': qe_objs})
+    app.local_cache[cache_str] = output_json
+
+    return output_json
 
 
 def decode(source_text, domain='ws://localhost', port='8080'):
